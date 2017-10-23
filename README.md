@@ -1,3 +1,6 @@
+Fork of [sidoh's great work](https://github.com/sidoh/esp8266_milight_hub) to fix some things and hopefully pushing the boundaries of MiLights possibilities.
+
+
 # esp8266_milight_hub
 This is a replacement for a Milight/LimitlessLED remote/gateway hosted on an ESP8266. Leverages [Henryk Plötz's awesome reverse-engineering work](https://hackaday.io/project/5888-reverse-engineering-the-milight-on-air-protocol).
 
