@@ -313,7 +313,7 @@ var handleCheckForUpdates = function() {
   );
 
   $.ajax(
-    'https://api.github.com/repos/sidoh/esp8266_milight_hub/releases/latest',
+    'https://api.github.com/repos/bombcheck/esp8266_milight_hub/releases/latest',
     {
       success: function(data) {
         latestRelease = data;
