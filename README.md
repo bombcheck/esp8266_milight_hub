@@ -1,3 +1,6 @@
+Fork of [sidoh's great work](https://github.com/sidoh/esp8266_milight_hub) to fix some things and hopefully pushing the boundaries of MiLights possibilities.
+
+
 # esp8266_milight_hub
 This is a replacement for a Milight/LimitlessLED remote/gateway hosted on an ESP8266. Leverages [Henryk Plötz's awesome reverse-engineering work](https://hackaday.io/project/5888-reverse-engineering-the-milight-on-air-protocol).
 
@@ -20,7 +23,7 @@ Support has been added for the following [bulb types](http://futlight.com/produc
 1. RGBW bulbs: FUT014, FUT016, FUT103
 1. Dual-White (CCT) bulbs: FUT019
 1. RGB LED strips: FUT025
-1. RGB + Dual White (RGB+CCT) bulbs: FUT015
+1. RGB + Dual White (RGB+CCT) bulbs: FUT015, FUT105
 
 Other bulb types might work, but have not been tested. It is also relatively easy to add support for new bulb types.
 
@@ -64,6 +67,8 @@ You can find pre-compiled firmware images on the [releases](https://github.com/s
 This project uses [WiFiManager](https://github.com/tzapu/WiFiManager) to avoid the need to hardcode AP credentials in the firmware.
 
 When the ESP powers on, you should be able to see a network named "ESPXXXXX", with XXXXX being an identifier for your ESP. Connect to this AP and a window should pop up prompting you to enter WiFi credentials.
+
+The network password is "**milightHub**".
 
 #### Get IP Address
 

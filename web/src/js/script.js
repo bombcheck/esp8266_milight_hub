@@ -313,7 +313,7 @@ var handleCheckForUpdates = function() {
   );
 
   $.ajax(
-    'https://api.github.com/repos/sidoh/esp8266_milight_hub/releases/latest',
+    'https://api.github.com/repos/bombcheck/esp8266_milight_hub/releases/latest',
     {
       success: function(data) {
         latestRelease = data;
@@ -397,6 +397,16 @@ $(function() {
 
   $('body').on('click', '.remove-gateway-server', function() {
     $(this).closest('tr').remove();
+  });
+
+  for (var i = 0; i < 9; i++) {
+    $('.mode-dropdown').append('<li><a href="#" data-mode-value="' + i + '">' + i + '</a></li>');
+  }
+
+  $('body').on('click', '.mode-dropdown li a', function(e) {
+    updateGroup({mode: $(this).data('mode-value')});
+    e.preventDefault();
+    return false;
   });
 
   selectize = $('#deviceId').selectize({

@@ -4,10 +4,10 @@
 #include <MiLightButtons.h>
 #include <ArduinoJson.h>
 
-#define PACKET_FORMATTER_BUFFER_SIZE 48
-
 #ifndef _PACKET_FORMATTER_H
 #define _PACKET_FORMATTER_H
+
+#define PACKET_FORMATTER_BUFFER_SIZE 48
 
 struct PacketStream {
   PacketStream();
@@ -26,6 +26,8 @@ public:
   PacketFormatter(const size_t packetLength, const size_t maxPackets = 1);
 
   typedef void (PacketFormatter::*StepFunction)();
+
+  virtual bool canHandle(const uint8_t* packet, const size_t len);
 
   void updateStatus(MiLightStatus status);
   virtual void updateStatus(MiLightStatus status, uint8_t groupId);
@@ -74,8 +76,6 @@ public:
   size_t getPacketLength() const;
 
 protected:
-  static uint8_t* PACKET_BUFFER;
-
   uint8_t* currentPacket;
   size_t packetLength;
   uint16_t deviceId;
