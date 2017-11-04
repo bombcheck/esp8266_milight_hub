@@ -87,24 +87,11 @@ void MqttClient::handleClient() {
 }
 
 void MqttClient::sendUpdate(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update) {
-  String topic = settings.mqttUpdateTopicPattern;
+  publish(settings.mqttUpdateTopicPattern, remoteConfig, deviceId, groupId, update);
+}
 
-  if (topic.length() == 0) {
-    return;
-  }
-
-  String deviceIdStr = String(deviceId, 16);
-  deviceIdStr.toUpperCase();
-
-  topic.replace(":device_id", String("0x") + deviceIdStr);
-  topic.replace(":group_id", String(groupId));
-  topic.replace(":device_type", remoteConfig.name);
-
-#ifdef MQTT_DEBUG
-  printf_P(PSTR("MqttClient - publishing update to %s: %s\n"), topic.c_str(), update);
-#endif
-
-  mqttClient->publish(topic.c_str(), update);
+void MqttClient::sendState(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update) {
+  publish(settings.mqttStateTopicPattern, remoteConfig, deviceId, groupId, update, true);
 }
 
 void MqttClient::subscribe() {
@@ -119,6 +106,28 @@ void MqttClient::subscribe() {
 #endif
 
   mqttClient->subscribe(topic.c_str());
+}
+
+void MqttClient::publish(
+  const String& _topic,
+  const MiLightRemoteConfig &remoteConfig,
+  uint16_t deviceId,
+  uint16_t groupId,
+  const char* message,
+  const bool retain
+) {
+  if (_topic.length() == 0) {
+    return;
+  }
+
+  String topic = _topic;
+  MqttClient::bindTopicString(topic, remoteConfig, deviceId, groupId);
+
+#ifdef MQTT_DEBUG
+  printf_P(PSTR("MqttClient - publishing update to %s: %s\n"), topic.c_str(), update);
+#endif
+
+  mqttClient->publish(topic.c_str(), message, retain);
 }
 
 void MqttClient::publishCallback(char* topic, byte* payload, int length) {
@@ -161,4 +170,21 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
 
   milightClient->prepare(config, deviceId, groupId);
   milightClient->update(obj);
+}
+
+inline void MqttClient::bindTopicString(
+  String& topicPattern,
+  const MiLightRemoteConfig& remoteConfig,
+  const uint16_t deviceId,
+  const uint16_t groupId
+) {
+  String deviceIdHex = String(deviceId, 16);
+  deviceIdHex.toUpperCase();
+  deviceIdHex = String("0x") + deviceIdHex;
+
+  topicPattern.replace(":device_id", deviceIdHex);
+  topicPattern.replace(":hex_device_id", deviceIdHex);
+  topicPattern.replace(":dec_device_id", String(deviceId));
+  topicPattern.replace(":group_id", String(groupId));
+  topicPattern.replace(":device_type", remoteConfig.name);
 }

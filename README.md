@@ -95,6 +95,7 @@ The HTTP endpoints (shown below) will be fully functional at this point. You sho
 1. `GET /radio_configs`. Get a list of supported radio configs (aka `device_type`s).
 1. `GET /gateway_traffic(/:device_type)?`. Starts an HTTP long poll. Returns any Milight traffic it hears. Useful if you need to know what your Milight gateway/remote ID is. Since protocols for RGBW/CCT are different, specify one of `rgbw`, `cct`, or `rgb_cct` as `:device_type.  The path `/gateway_traffic` without a `:device_type` will sniff for all protocols simultaneously.
 1. `PUT /gateways/:device_id/:device_type/:group_id`. Controls or sends commands to `:group_id` from `:device_id`. Accepts a JSON blob. The schema is documented below in the _Bulb commands_ section.
+1. `GET /gateways/:device_id/:device_type/:group_id`. Returns a JSON blob describing the state of the the provided group.
 1. `POST /raw_commands/:device_type`. Sends a raw RF packet with radio configs associated with `:device_type`. Example body:
     ```
     {"packet": "01 02 03 04 05 06 07 08 09", "num_repeats": 10}
@@ -182,16 +183,11 @@ This will instruct the ESP to send messages to RGB+CCT bulbs with device ID `0x1
 
 To enable passive listening, make sure that `listen_repeats` is set to something larger than 0 (the default value of 3 is a good choice).
 
-To publish data from intercepted packets to an MQTT topic, configure MQTT server settings, and set the `mqtt_update_topic_pattern` to something of your choice. As with `mqtt_topic_pattern`, the tokens `:device_id`, `:device_type`, and `:group_id` will be substituted with the values from the relevant packet.
+To publish data from intercepted packets to an MQTT topic, configure MQTT server settings, and set the `mqtt_update_topic_pattern` to something of your choice. As with `mqtt_topic_pattern`, the tokens `:device_id`, `:device_type`, and `:group_id` will be substituted with the values from the relevant packet.  `:device_id` will always be substituted with the hexadecimal value of the ID.  You can also use `:hex_device_id`, or `:dec_device_id` if you prefer decimal.
 
-The published message is a JSON blob containing the following keys:
+The published message is a JSON blob containing the state that was changed.
 
-* `device_id`
-* `device_type` (rgb_cct, rgbw, etc.)
-* `group_id`
-* Any number of: `status`, `level`, `hue`, `saturation`, `kelvin`
-
-As an example, if `mqtt_update_topic_pattern` is set to `milight/updates/:device_id/:device_type/:group_id`, and the group 1 on button of a Milight remote is pressed, the following update will be dispatched:
+As an example, if `mqtt_update_topic_pattern` is set to `milight/updates/:hex_device_id/:device_type/:group_id`, and the group 1 on button of a Milight remote is pressed, the following update will be dispatched:
 
 ```ruby
 irb(main):005:0> client.subscribe('milight/updates/+/+/+')
@@ -199,6 +195,8 @@ irb(main):005:0> client.subscribe('milight/updates/+/+/+')
 irb(main):006:0> puts client.get.inspect
 ["lights/updates/0x1C8E/rgb_cct/1", "{\"device_id\":7310,\"group_id\":1,\"device_type\":\"rgb_cct\",\"status\":\"on\"}"]
 ```
+
+**Make sure that `mqtt_topic_pattern` and `matt_update_topic_pattern` are different!**  If they are they same you can put your ESP in a loop where its own updates trigger an infinite command loop.
 
 ## UDP Gateways
 
