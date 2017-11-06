@@ -1,4 +1,5 @@
 Fork of [sidoh's great work](https://github.com/sidoh/esp8266_milight_hub) to fix some things and hopefully pushing the boundaries of MiLights possibilities.
+The following text is his original README (just replaced some links for consistency):
 
 
 # esp8266_milight_hub
@@ -60,7 +61,7 @@ platformio run -e $ESP_BOARD --target upload
 
 Of course make sure to substitute `nodemcuv2` with the board that you're using.
 
-You can find pre-compiled firmware images on the [releases](https://github.com/sidoh/esp8266_milight_hub/releases).
+You can find pre-compiled firmware images on the [releases](https://github.com/bombcheck/esp8266_milight_hub/releases).
 
 #### Configure WiFi
 
