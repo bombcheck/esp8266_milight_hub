@@ -56,6 +56,7 @@ public:
       lastMode(0)
   { }
 
+  virtual bool canHandle(const uint8_t* packet, const size_t len);
   virtual void updateStatus(MiLightStatus status, uint8_t groupId);
   virtual void updateBrightness(uint8_t value);
   virtual void command(uint8_t command, uint8_t arg);
@@ -70,12 +71,14 @@ public:
   virtual void previousMode();
   virtual void updateMode(uint8_t mode);
   virtual void enableNightMode();
-  virtual void parsePacket(const uint8_t* packet, JsonObject& result);
+  virtual BulbId parsePacket(const uint8_t* packet, JsonObject& result, GroupStateStore* stateStore);
 
   virtual void initializePacket(uint8_t* packet);
 
 protected:
   uint8_t lastMode;
+
+  static bool isStatusCommand(const uint8_t command);
 };
 
 #endif

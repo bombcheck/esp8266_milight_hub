@@ -4,12 +4,25 @@
 #include <RGBConverter.h>
 #include <Units.h>
 
-MiLightClient::MiLightClient(MiLightRadioFactory* radioFactory)
-  : resendCount(MILIGHT_DEFAULT_RESEND_COUNT),
+MiLightClient::MiLightClient(
+  MiLightRadioFactory* radioFactory,
+  GroupStateStore& stateStore,
+  size_t throttleThreshold,
+  size_t throttleSensitivity,
+  size_t packetRepeatMinimum
+)
+  : baseResendCount(MILIGHT_DEFAULT_RESEND_COUNT),
     currentRadio(NULL),
     currentRemote(NULL),
     numRadios(MiLightRadioConfig::NUM_CONFIGS),
-    packetSentHandler(NULL)
+    packetSentHandler(NULL),
+    updateBeginHandler(NULL),
+    updateEndHandler(NULL),
+    stateStore(stateStore),
+    lastSend(0),
+    throttleThreshold(throttleThreshold),
+    throttleSensitivity(throttleSensitivity),
+    packetRepeatMinimum(packetRepeatMinimum)
 {
   radios = new MiLightRadio*[numRadios];
 
@@ -65,6 +78,7 @@ void MiLightClient::prepare(const MiLightRemoteConfig* config,
   const uint8_t groupId
 ) {
   switchRadio(config);
+
   this->currentRemote = config;
 
   if (deviceId >= 0 && groupId >= 0) {
@@ -80,7 +94,9 @@ void MiLightClient::prepare(const MiLightRemoteType type,
 }
 
 void MiLightClient::setResendCount(const unsigned int resendCount) {
-  this->resendCount = resendCount;
+  this->baseResendCount = resendCount;
+  this->currentResendCount = resendCount;
+  this->throttleMultiplier = ceil((throttleSensitivity / 1000.0) * this->baseResendCount);
 }
 
 bool MiLightClient::available() {
@@ -108,15 +124,15 @@ void MiLightClient::write(uint8_t packet[]) {
   }
 
 #ifdef DEBUG_PRINTF
-  printf("Sending packet: ");
+  Serial.printf("Sending packet (%d repeats): \n", this->currentResendCount);
   for (int i = 0; i < currentRemote->packetFormatter->getPacketLength(); i++) {
-    printf("%02X", packet[i]);
+    Serial.printf("%02X ", packet[i]);
   }
-  printf("\n");
+  Serial.println();
   int iStart = millis();
 #endif
 
-  for (int i = 0; i < this->resendCount; i++) {
+  for (int i = 0; i < this->currentResendCount; i++) {
     currentRadio->write(packet, currentRemote->packetFormatter->getPacketLength());
   }
 
@@ -236,6 +252,10 @@ void MiLightClient::command(uint8_t command, uint8_t arg) {
 }
 
 void MiLightClient::update(const JsonObject& request) {
+  if (this->updateBeginHandler) {
+    this->updateBeginHandler();
+  }
+
   const uint8_t parsedStatus = this->parseStatus(request);
 
   // Always turn on first
@@ -324,6 +344,10 @@ void MiLightClient::update(const JsonObject& request) {
   if (parsedStatus == OFF) {
     this->updateStatus(OFF);
   }
+
+  if (this->updateEndHandler) {
+    this->updateEndHandler();
+  }
 }
 
 void MiLightClient::handleCommand(const String& command) {
@@ -376,14 +400,19 @@ uint8_t MiLightClient::parseStatus(const JsonObject& object) {
   return (strStatus.equalsIgnoreCase("on") || strStatus.equalsIgnoreCase("true")) ? ON : OFF;
 }
 
+void MiLightClient::updateResendCount() {
+  unsigned long now = millis();
+  long millisSinceLastSend = now - lastSend;
+  long x = (millisSinceLastSend - throttleThreshold);
+  long delta = x * throttleMultiplier;
+
+  this->currentResendCount = constrain(this->currentResendCount + delta, packetRepeatMinimum, this->baseResendCount);
+  this->lastSend = now;
+}
+
 void MiLightClient::flushPacket() {
   PacketStream& stream = currentRemote->packetFormatter->buildPackets();
-  const size_t prevNumRepeats = this->resendCount;
-
-  // When sending multiple packets, normalize the number of repeats
-  if (stream.numPackets > 1) {
-    setResendCount(MILIGHT_DEFAULT_RESEND_COUNT);
-  }
+  updateResendCount();
 
   while (stream.hasNext()) {
     write(stream.next());
@@ -393,10 +422,17 @@ void MiLightClient::flushPacket() {
     }
   }
 
-  setResendCount(prevNumRepeats);
   currentRemote->packetFormatter->reset();
 }
 
 void MiLightClient::onPacketSent(PacketSentHandler handler) {
   this->packetSentHandler = handler;
+}
+
+void MiLightClient::onUpdateBegin(EventHandler handler) {
+  this->updateBeginHandler = handler;
+}
+
+void MiLightClient::onUpdateEnd(EventHandler handler) {
+  this->updateEndHandler = handler;
 }

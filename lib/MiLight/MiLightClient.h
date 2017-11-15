@@ -2,9 +2,9 @@
 #include <Arduino.h>
 #include <MiLightRadio.h>
 #include <MiLightRadioFactory.h>
-#include <MiLightButtons.h>
 #include <MiLightRemoteConfig.h>
 #include <Settings.h>
+#include <GroupStateStore.h>
 
 #ifndef _MILIGHTCLIENT_H
 #define _MILIGHTCLIENT_H
@@ -17,13 +17,20 @@
 
 class MiLightClient {
 public:
-  MiLightClient(MiLightRadioFactory* radioFactory);
+  MiLightClient(
+    MiLightRadioFactory* radioFactory,
+    GroupStateStore& stateStore,
+    size_t throttleThreshold,
+    size_t throttleSensitivity,
+    size_t packetRepeatMinimum
+  );
 
   ~MiLightClient() {
     delete[] radios;
   }
 
   typedef std::function<void(uint8_t* packet, const MiLightRemoteConfig& config)> PacketSentHandler;
+  typedef std::function<void(void)> EventHandler;
 
   void begin();
   void prepare(const MiLightRemoteConfig* remoteConfig, const uint16_t deviceId = -1, const uint8_t groupId = -1);
@@ -69,6 +76,8 @@ public:
   void handleEffect(const String& effect);
 
   void onPacketSent(PacketSentHandler handler);
+  void onUpdateBegin(EventHandler handler);
+  void onUpdateEnd(EventHandler handler);
 
   size_t getNumRadios() const;
   MiLightRadio* switchRadio(size_t radioIx);
@@ -80,8 +89,38 @@ protected:
   MiLightRadio* currentRadio;
   const MiLightRemoteConfig* currentRemote;
   const size_t numRadios;
-  unsigned int resendCount;
+  GroupStateStore& stateStore;
+
   PacketSentHandler packetSentHandler;
+  EventHandler updateBeginHandler;
+  EventHandler updateEndHandler;
+
+  // Used to track auto repeat limiting
+  unsigned long lastSend;
+  int currentResendCount;
+  unsigned int baseResendCount;
+  int packetRepeatMinimum;
+  size_t throttleThreshold;
+  size_t throttleSensitivity;
+
+  // This will be pre-computed, but is simply:
+  //
+  //    (sensitivity / 1000.0) * R
+  //
+  // Where R is the base number of repeats.
+  size_t throttleMultiplier;
+
+  /*
+   * Calculates the number of resend packets based on when the last packet
+   * was sent using this function:
+   *
+   *    lastRepeatsValue + (millisSinceLastSend - THRESHOLD) * throttleMultiplier
+   *
+   * When the last send was more recent than THRESHOLD, the number of repeats
+   * will be decreased to a minimum of zero.  When less recent, it will be
+   * increased up to a maximum of the default resend count.
+   */
+  void updateResendCount();
 
   MiLightRadio* switchRadio(const MiLightRemoteConfig* remoteConfig);
   uint8_t parseStatus(const JsonObject& object);

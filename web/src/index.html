@@ -10,6 +10,7 @@
   <link href="https://gitcdn.github.io/bootstrap-toggle/2.2.2/css/bootstrap-toggle.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.0/css/bootstrap-slider.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.4/css/selectize.bootstrap3.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/css/bootstrap-select.min.css" rel="stylesheet"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.js"></script>
@@ -24,7 +25,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.0/bootstrap-slider.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.4/js/standalone/selectize.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/js/bootstrap-select.min.js"></script>
 
+  <script src="js/rgb2hsv.js" lang="text/javascript"></script>
   <script src="js/script.js" lang="text/javascript"></script>
 
   <div id="update-firmware-modal" class="modal fade" role="dialog">
@@ -108,7 +111,7 @@
          </div>
        </div>
        <div class="modal-footer">
-         <a href="/download_update/web" class="btn btn-primary">Update Web UI</a>
+         <!-- <a href="/download_update/web" class="btn btn-primary">Update Web UI</a> -->
          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
        </div>
      </div>
@@ -196,7 +199,7 @@
       </div>
 
       <div class="col-sm-4">
-        <label for="groupId">Mode</label>
+        <label for="mode">Mode</label>
 
         <div class="btn-group" id="mode" data-toggle="buttons">
           <label class="btn btn-secondary active">
@@ -345,7 +348,7 @@
                 <ul class="dropdown-menu mode-dropdown">
                 </ul>
               </div>
-            </li>
+          </li>
           </div>
           <div class="mode-option inline" data-for="rgb,rgbw,rgb_cct,fut089">
             <li>
