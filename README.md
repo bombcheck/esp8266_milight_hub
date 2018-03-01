@@ -1,8 +1,6 @@
-Fork of [sidoh's great work](https://github.com/sidoh/esp8266_milight_hub) to fix some things and hopefully pushing the boundaries of MiLights possibilities.
-The following text is his original README (just replaced some links for consistency):
+# esp8266_milight_hub [![GitHub release](https://img.shields.io/github/release/bombcheck/esp8266_milight_hub.svg)](https://github.com/bombcheck/esp8266_milight_hub/releases/latest)
+Fork of [sidoh's great work](https://github.com/sidoh/esp8266_milight_hub) to fix some things and hopefully pushing the boundaries of MiLights possibilities. The following text is his original README (just replaced some links for consistency):
 
-
-# esp8266_milight_hub
 This is a replacement for a Milight/LimitlessLED remote/gateway hosted on an ESP8266. Leverages [Henryk Plötz's awesome reverse-engineering work](https://hackaday.io/project/5888-reverse-engineering-the-milight-on-air-protocol).
 
 [Milight bulbs](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LPRQ4BK/r) are cheap smart bulbs that are controllable with an undocumented 2.4 GHz protocol. In order to control them, you either need a [remote](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LCSALV6/r?th=1) ($13), which allows you to control them directly, or a [WiFi gateway](https://www.amazon.com/BTF-LIGHTING-Mi-Light-WiFi-Bridge-Controller/dp/B01H87DYR8/ref=sr_1_7?ie=UTF8&qid=1485715984&sr=8-7&keywords=milight) ($30), which allows you to control them with a mobile app or a [UDP protocol](http://www.limitlessled.com/dev/).
@@ -44,7 +42,7 @@ Both modules are SPI devices and should be connected to the standard SPI pins on
 
 ##### NRF24L01+
 
-[This guide](https://www.mysensors.org/build/connect_radio#nrf24l01+-&-esp8266) details how to connect an NRF24 to an ESP8266. I used GPIO 16 for CE and GPIO 15 for CSN instead. These can be configured later.
+[This guide](https://www.mysensors.org/build/esp8266_gateway) details how to connect an NRF24 to an ESP8266. I used GPIO 16 for CE and GPIO 15 for CSN. These can be configured later.
 
 ##### LT8900
 
@@ -93,14 +91,14 @@ The HTTP endpoints (shown below) will be fully functional at this point. You sho
 
 ## REST endpoints
 
-1. `GET /`. Opens web UI. 
+1. `GET /`. Opens web UI.
 1. `GET /about`. Return information about current firmware version.
 1. `POST /system`. Post commands in the form `{"comamnd": <command>}`. Currently supports the commands: `restart`.
 1. `POST /firmware`. OTA firmware update.
 1. `GET /settings`. Gets current settings as JSON.
 1. `PUT /settings`. Patches settings (e.g., doesn't overwrite keys that aren't present). Accepts a JSON blob in the body.
 1. `GET /radio_configs`. Get a list of supported radio configs (aka `device_type`s).
-1. `GET /gateway_traffic(/:device_type)?`. Starts an HTTP long poll. Returns any Milight traffic it hears. Useful if you need to know what your Milight gateway/remote ID is. Since protocols for RGBW/CCT are different, specify one of `rgbw`, `cct`, or `rgb_cct` as `:device_type`. The path `/gateway_traffic` without a `:device_type` will sniff for all protocols simultaneously.
+1. `GET /gateway_traffic(/:device_type)?`. Starts an HTTP long poll. Returns any Milight traffic it hears. Useful if you need to know what your Milight gateway/remote ID is. Since protocols for RGBW/CCT are different, specify one of `rgbw`, `cct`, or `rgb_cct` as `:device_type.  The path `/gateway_traffic` without a `:device_type` will sniff for all protocols simultaneously.
 1. `PUT /gateways/:device_id/:device_type/:group_id`. Controls or sends commands to `:group_id` from `:device_id`. Accepts a JSON blob. The schema is documented below in the _Bulb commands_ section.
 1. `GET /gateways/:device_id/:device_type/:group_id`. Returns a JSON blob describing the state of the the provided group.
 1. `POST /raw_commands/:device_type`. Sends a raw RF packet with radio configs associated with `:device_type`. Example body:
@@ -226,16 +224,6 @@ irb(main):007:0> puts client.get.inspect
 ```
 
 **Make sure that `mqtt_topic_pattern`, `mqtt_state_topic_pattern`, and `matt_update_topic_pattern` are all different!**  If they are they same you can put your ESP in a loop where its own updates trigger an infinite command loop.
-
-##### Customize fields
-
-You can select which fields should be included in state updates by configuring the `group_state_fields` parameter.  Available fields should be mostly self explanatory, with the possible exceptions of:
-
-1. `state` / `status` - same value with different keys (useful if your platform expects one or the other).
-1. `brightness` / `level` - [0, 255] and [0, 100] scales of the same value.
-1. `kelvin / color_temp` - [0, 100] and [153, 370] scales for the same value.  The later's unit is mireds.
-1. `bulb_mode` - what mode the bulb is in: white, rgb, etc.
-1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
 
 ## UDP Gateways
 
