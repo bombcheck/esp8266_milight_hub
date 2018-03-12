@@ -87,7 +87,7 @@ void initMilightUdpServers() {
 void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   StaticJsonBuffer<200> buffer;
   JsonObject& result = buffer.createObject();
-  BulbId bulbId = config.packetFormatter->parsePacket(packet, result, stateStore);
+  BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
 
 
   // blip LED to indicate we saw a packet (send or receive)
@@ -206,10 +206,8 @@ void applySettings() {
 
   milightClient = new MiLightClient(
     radioFactory,
-    *stateStore,
-    settings.packetRepeatThrottleThreshold,
-    settings.packetRepeatThrottleSensitivity,
-    settings.packetRepeatMinimum
+    stateStore,
+    &settings
   );
   milightClient->begin();
   milightClient->onPacketSent(onPacketSentHandler);
@@ -258,7 +256,7 @@ void handleLED() {
 void setup() {
   Serial.begin(9600);
   String ssid = "ESP" + String(ESP.getChipId());
-  
+
   // load up our persistent settings from the file system
   SPIFFS.begin();
   Settings::load(settings);
@@ -280,10 +278,10 @@ void setup() {
   wifiManager.setSetupLoopCallback(handleLED);
   wifiManager.setConfigPortalTimeout(180);
   if (wifiManager.autoConnect(ssid.c_str(), "milightHub")) {
-    ledStatus->continuous(LEDStatus::LEDMode::SlowBlip);
+    ledStatus->continuous(LEDStatus::LEDMode::On);
     Serial.println(F("Wifi connected succesfully\n"));
   } else {
-    ledStatus->continuous(LEDStatus::LEDMode::On);
+    ledStatus->continuous(LEDStatus::LEDMode::SlowBlip);
     Serial.println(F("Wifi failed.  Oh well.\n"));
   }
 
@@ -303,7 +301,7 @@ void setup() {
   httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
   httpServer->begin();
 
-  Serial.println(F("Setup complete"));
+  Serial.printf_P(PSTR("Setup complete (version %s)\n"), QUOTE(MILIGHT_HUB_VERSION));
 }
 
 void loop() {

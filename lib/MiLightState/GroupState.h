@@ -47,6 +47,8 @@ public:
   bool isSetState() const;
   MiLightStatus getState() const;
   bool setState(const MiLightStatus on);
+  // Return true if status is ON or if the field is unset (i.e., defaults to ON)
+  bool isOn() const;
 
   // 7 bits
   bool isSetBrightness() const;
@@ -95,8 +97,13 @@ public:
   bool clearMqttDirty();
 
   bool patch(const JsonObject& state);
-  void applyField(JsonObject& state, GroupStateField field);
-  void applyState(JsonObject& state, GroupStateField* fields, size_t numFields);
+
+  // It's a little weird to need to pass in a BulbId here.  The purpose is to
+  // support fields like DEVICE_ID, which aren't otherweise available to the
+  // state in this class.  The alternative is to have every GroupState object
+  // keep a reference to its BulbId, which feels too heavy-weight.
+  void applyField(JsonObject& state, const BulbId& bulbId, GroupStateField field);
+  void applyState(JsonObject& state, const BulbId& bulbId, GroupStateField* fields, size_t numFields);
 
   void load(Stream& stream);
   void dump(Stream& stream) const;
@@ -106,9 +113,9 @@ public:
   static const GroupState& defaultState(MiLightRemoteType remoteType);
 
 private:
-  static const size_t DATA_BYTES = 2;
-  union Data {
-    uint32_t data[DATA_BYTES];
+  static const size_t DATA_LONGS = 3;
+  union StateData {
+    uint32_t rawData[DATA_LONGS];
     struct Fields {
       uint32_t
         _state                : 1,
@@ -133,12 +140,11 @@ private:
         _dirty                : 1,
         _mqttDirty            : 1,
         _isSetNightMode       : 1,
-        _isNightMode          : 1,
-                              : 2;
+        _isNightMode          : 1;
     } fields;
   };
 
-  Data state;
+  StateData state;
 
   void applyColor(JsonObject& state, uint8_t r, uint8_t g, uint8_t b);
   void applyColor(JsonObject& state);
