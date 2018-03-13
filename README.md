@@ -42,7 +42,7 @@ Both modules are SPI devices and should be connected to the standard SPI pins on
 
 ##### NRF24L01+
 
-[This guide](https://www.mysensors.org/build/esp8266_gateway) details how to connect an NRF24 to an ESP8266. I used GPIO 16 for CE and GPIO 15 for CSN. These can be configured later.
+[This guide](https://www.mysensors.org/build/connect_radio#nrf24l01+-&-esp8266) details how to connect an NRF24 to an ESP8266. I used GPIO 16 for CE and GPIO 15 for CSN instead. These can be configured later.
 
 ##### LT8900
 
@@ -232,6 +232,17 @@ irb(main):007:0> puts client.get.inspect
 
 **Make sure that `mqtt_topic_pattern`, `mqtt_state_topic_pattern`, and `matt_update_topic_pattern` are all different!**  If they are they same you can put your ESP in a loop where its own updates trigger an infinite command loop.
 
+##### Customize fields
+
+You can select which fields should be included in state updates by configuring the `group_state_fields` parameter.  Available fields should be mostly self explanatory, with the possible exceptions of:
+
+1. `state` / `status` - same value with different keys (useful if your platform expects one or the other).
+1. `brightness` / `level` - [0, 255] and [0, 100] scales of the same value.
+1. `kelvin / color_temp` - [0, 100] and [153, 370] scales for the same value.  The later's unit is mireds.
+1. `bulb_mode` - what mode the bulb is in: white, rgb, etc.
+1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
+1. `device_id` / `device_type` / `group_id` - this information is in the MQTT topic or REST route, but can be included in the payload in the case that processing the topic or route is more difficult.
+
 ## UDP Gateways
 
 You can add an arbitrary number of UDP gateways through the REST API or through the web UI. Each gateway server listens on a port and responds to the standard set of commands supported by the Milight protocol. This should allow you to use one of these with standard Milight integrations (SmartThings, Home Assistant, OpenHAB, etc.).
@@ -241,8 +252,7 @@ You can select between versions 5 and 6 of the UDP protocol (documented [here](h
 ## Acknowledgements
 
 * @WoodsterDK added support for LT8900 radios.
-
-
+* @cmidgley contributed many substantial features to the 1.7 release.
 
 [info-license]:   https://github.com/sidoh/esp8266_milight_hub/blob/master/LICENSE
 [shield-license]: https://img.shields.io/badge/license-MIT-blue.svg
