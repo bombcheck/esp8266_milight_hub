@@ -258,7 +258,7 @@ void handleLED() {
 void setup() {
   Serial.begin(9600);
   String ssid = "ESP" + String(ESP.getChipId());
-
+  
   // load up our persistent settings from the file system
   SPIFFS.begin();
   Settings::load(settings);
