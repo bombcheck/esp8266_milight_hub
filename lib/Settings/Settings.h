@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <GroupStateField.h>
 #include <Size.h>
+#include <LEDStatus.h>
 
 #ifndef _SETTINGS_H_INCLUDED
 #define _SETTINGS_H_INCLUDED
@@ -46,7 +47,7 @@ enum RadioInterfaceType {
 static const GroupStateField DEFAULT_GROUP_STATE_FIELDS[] = {
   GroupStateField::STATE,
   GroupStateField::BRIGHTNESS,
-  GroupStateField::COLOR,
+  GroupStateField::COMPUTED_COLOR,
   GroupStateField::MODE,
   GroupStateField::COLOR_TEMP,
   GroupStateField::BULB_MODE
@@ -71,9 +72,10 @@ public:
     adminUsername(""),
     adminPassword(""),
     // CE and CSN pins from nrf24l01
-    cePin(D0),
-    csnPin(D8),
+    cePin(16),
+    csnPin(15),
     resetPin(0),
+    ledPin(-2),
     radioInterfaceType(nRF24),
     deviceIds(NULL),
     gatewayConfigs(NULL),
@@ -90,7 +92,13 @@ public:
     packetRepeatThrottleSensitivity(0),
     packetRepeatMinimum(3),
     groupStateFields(NULL),
-    numGroupStateFields(0)
+    numGroupStateFields(0),
+    enableAutomaticModeSwitching(false),
+    ledModeWifiConfig(LEDStatus::LEDMode::FastToggle),
+    ledModeWifiFailed(LEDStatus::LEDMode::On),
+    ledModeOperating(LEDStatus::LEDMode::SlowBlip),
+    ledModePacket(LEDStatus::LEDMode::Flicker),
+    ledModePacketCount(3)
   {
     if (groupStateFields == NULL) {
       numGroupStateFields = size(DEFAULT_GROUP_STATE_FIELDS);
@@ -130,6 +138,7 @@ public:
   uint8_t cePin;
   uint8_t csnPin;
   uint8_t resetPin;
+  int8_t ledPin;
   RadioInterfaceType radioInterfaceType;
   uint16_t *deviceIds;
   GatewayConfig **gatewayConfigs;
@@ -152,6 +161,13 @@ public:
   size_t packetRepeatThrottleSensitivity;
   size_t packetRepeatThrottleThreshold;
   size_t packetRepeatMinimum;
+  bool enableAutomaticModeSwitching;
+  LEDStatus::LEDMode ledModeWifiConfig;
+  LEDStatus::LEDMode ledModeWifiFailed;
+  LEDStatus::LEDMode ledModeOperating;
+  LEDStatus::LEDMode ledModePacket;
+  size_t ledModePacketCount;
+
 
 protected:
   size_t _autoRestartPeriod;

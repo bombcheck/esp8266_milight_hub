@@ -9,30 +9,67 @@ bool CctPacketFormatter::canHandle(const uint8_t *packet, const size_t len) {
 void CctPacketFormatter::initializePacket(uint8_t* packet) {
   size_t packetPtr = 0;
 
+  // Byte 0: Packet length = 7 bytes
+
+  // Byte 1: CCT protocol
   packet[packetPtr++] = CCT_PROTOCOL_ID;
+
+  // Byte 2 and 3: Device ID
   packet[packetPtr++] = deviceId >> 8;
   packet[packetPtr++] = deviceId & 0xFF;
+
+  // Byte 4: Zone
   packet[packetPtr++] = groupId;
+
+  // Byte 5: Bulb command, filled in later
   packet[packetPtr++] = 0;
-  packet[packetPtr++] = sequenceNum;
+
+  // Byte 6: Packet sequence number 0..255
   packet[packetPtr++] = sequenceNum++;
+
+  // Byte 7: Checksum over previous bytes, including packet length = 7
+  // The checksum will be calculated when setting the command field
+  packet[packetPtr++] = 0;
+
+  // Byte 8: CRC LSB
+  // Byte 9: CRC MSB
+}
+
+void CctPacketFormatter::finalizePacket(uint8_t* packet) {
+  uint8_t checksum;
+
+  // Calculate checksum over packet length .. sequenceNum
+  checksum = 7; // Packet length is not part of packet
+  for (uint8_t i = 0; i < 6; i++) {
+    checksum += currentPacket[i];
+  }
+  // Store the checksum in the sixth byte
+  currentPacket[6] = checksum;
 }
 
 void CctPacketFormatter::updateBrightness(uint8_t value) {
+  const GroupState& state = this->stateStore->get(deviceId, groupId, MiLightRemoteType::REMOTE_TYPE_CCT);
+  int8_t knownValue = state.isSetBrightness() ? state.getBrightness() : -1;
+
   valueByStepFunction(
     &PacketFormatter::increaseBrightness,
     &PacketFormatter::decreaseBrightness,
     CCT_INTERVALS,
-    value / CCT_INTERVALS
+    value / CCT_INTERVALS,
+    knownValue / CCT_INTERVALS
   );
 }
 
 void CctPacketFormatter::updateTemperature(uint8_t value) {
+  const GroupState& state = this->stateStore->get(deviceId, groupId, MiLightRemoteType::REMOTE_TYPE_CCT);
+  int8_t knownValue = state.isSetKelvin() ? state.getKelvin() : -1;
+
   valueByStepFunction(
     &PacketFormatter::increaseTemperature,
     &PacketFormatter::decreaseTemperature,
     CCT_INTERVALS,
-    value / CCT_INTERVALS
+    value / CCT_INTERVALS,
+    knownValue / CCT_INTERVALS
   );
 }
 
@@ -151,16 +188,16 @@ MiLightStatus CctPacketFormatter::cctCommandToStatus(uint8_t command) {
   }
 }
 
-BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject& result, GroupStateStore* stateStore) {
+BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject& result) {
   uint8_t command = packet[CCT_COMMAND_INDEX] & 0x7F;
 
+  uint8_t onOffGroupId = cctCommandIdToGroup(command);
   BulbId bulbId(
     (packet[1] << 8) | packet[2],
-    packet[3],
+    onOffGroupId < 255 ? onOffGroupId : packet[3],
     REMOTE_TYPE_CCT
   );
 
-  uint8_t onOffGroupId = cctCommandIdToGroup(command);
   if (onOffGroupId < 255) {
     result["state"] = cctCommandToStatus(command) == ON ? "ON" : "OFF";
   } else if (command == CCT_BRIGHTNESS_DOWN) {
