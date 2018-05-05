@@ -39,7 +39,7 @@
           <span class="icon-bar"></span>
           <span class="icon-bar"></span>
         </button>
-        <a class="navbar-brand" href="/">MiLight Hub</a>
+        <a class="navbar-brand" href="/">FB.MiLight-Hub</a>
       </div>
       <div class="collapse navbar-collapse">
         <ul class="nav navbar-nav">
@@ -368,7 +368,7 @@
           <div class="alert alert-warning">
             <p>
             Download firmware binaries from the
-            <a href="https://github.com/sidoh/esp8266_milight_hub/releases">GitHub releases page</a>.
+            <a href="https://github.com/bombcheck/esp8266_milight_hub/releases">GitHub releases page</a>.
             Check for a new version by clicking on the "Check for Updates" button.
             </p>
 
@@ -377,6 +377,10 @@
               Firmware with incompatible settings could prevent boots. If this happens,
               reflash the board with USB.
             </p>
+
+			<p>
+              <b>Please power cycle the board after flashing to ensure a stable operation!</b>
+            </p>            
           </div>
           <form action="/firmware" method="post" enctype="multipart/form-data">
             <input type="file" name="file"/>
