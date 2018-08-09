@@ -1,3 +1,5 @@
+#ifndef UNIT_TEST
+
 #include <SPI.h>
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
@@ -87,8 +89,8 @@ void initMilightUdpServers() {
 void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   StaticJsonBuffer<200> buffer;
   JsonObject& result = buffer.createObject();
-  BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
 
+  BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
 
   // set LED mode for a packet movement
   ledStatus->oneshot(settings.ledModePacket, settings.ledModePacketCount);
@@ -284,15 +286,15 @@ void setup() {
     ledStatus->continuous(settings.ledModeOperating);
     Serial.println(F("Wifi connected succesfully\n"));
 
-	// if the config portal was started, make sure to turn off the config AP
-	WiFi.mode(WIFI_STA);
+    // if the config portal was started, make sure to turn off the config AP
+    WiFi.mode(WIFI_STA);
   } else {
     // set LED mode for Wifi failed
     ledStatus->continuous(settings.ledModeWifiFailed);
-	Serial.println(F("Wifi failed.  Restarting in 10 seconds.\n"));
+    Serial.println(F("Wifi failed.  Restarting in 10 seconds.\n"));
 
-	delay(10000);
-	ESP.restart();
+    delay(10000);
+    ESP.restart();
   }
 
 
@@ -344,3 +346,5 @@ void loop() {
     ESP.restart();
   }
 }
+
+#endif
