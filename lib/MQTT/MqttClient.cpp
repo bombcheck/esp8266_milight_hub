@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>
 #include <WiFiClient.h>
 #include <MiLightRadioConfig.h>
+#include <AboutStringHelper.h>
 
 MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient)
   : milightClient(milightClient),
@@ -51,14 +52,39 @@ bool MqttClient::connect() {
     Serial.println(F("MqttClient - connecting"));
 #endif
 
-  if (settings.mqttUsername.length() > 0) {
+  if (settings.mqttUsername.length() > 0 && settings.mqttLwtTopic.length() > 0) {
+    return mqttClient->connect(
+      nameBuffer,
+      settings.mqttUsername.c_str(),
+      settings.mqttPassword.c_str(),
+      settings.mqttLwtTopic.c_str(),
+      2,
+      true,
+      settings.mqttLwtMessage.c_str()
+    );
+  } else if (settings.mqttUsername.length() > 0) {
     return mqttClient->connect(
       nameBuffer,
       settings.mqttUsername.c_str(),
       settings.mqttPassword.c_str()
     );
+  } else if (settings.mqttLwtTopic.length() > 0) {
+    return mqttClient->connect(
+      nameBuffer,
+      settings.mqttLwtTopic.c_str(),
+      2,
+      true,
+      settings.mqttLwtMessage.c_str()
+    );
   } else {
     return mqttClient->connect(nameBuffer);
+  }
+}
+
+void MqttClient::sendBirthMessage() {
+  if (settings.mqttBirthTopic.length() > 0) {
+    String aboutStr = AboutStringHelper::generateAboutString(true);
+    mqttClient->publish(settings.mqttBirthTopic.c_str(), aboutStr.c_str());
   }
 }
 
@@ -70,6 +96,7 @@ void MqttClient::reconnect() {
   if (! mqttClient->connected()) {
     if (connect()) {
       subscribe();
+      sendBirthMessage();
 
 #ifdef MQTT_DEBUG
       Serial.println(F("MqttClient - Successfully connected to MQTT server"));

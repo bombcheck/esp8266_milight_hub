@@ -2,14 +2,21 @@
 #include <StringStream.h>
 #include <ArduinoJson.h>
 #include <GroupStateField.h>
+#include <RF24PowerLevel.h>
+#include <RF24Channel.h>
 #include <Size.h>
 #include <LEDStatus.h>
+#include <vector>
 
 #ifndef _SETTINGS_H_INCLUDED
 #define _SETTINGS_H_INCLUDED
 
 #define XQUOTE(x) #x
 #define QUOTE(x) XQUOTE(x)
+
+#ifndef FIRMWARE_NAME
+#define FIRMWARE_NAME unknown
+#endif
 
 #ifndef FIRMWARE_VARIANT
 #define FIRMWARE_VARIANT unknown
@@ -72,7 +79,7 @@ public:
     adminUsername(""),
     adminPassword(""),
     // CE and CSN pins from nrf24l01
-    cePin(16),
+    cePin(4),
     csnPin(15),
     resetPin(0),
     ledPin(-2),
@@ -98,7 +105,11 @@ public:
     ledModeWifiFailed(LEDStatus::LEDMode::On),
     ledModeOperating(LEDStatus::LEDMode::SlowBlip),
     ledModePacket(LEDStatus::LEDMode::Flicker),
-    ledModePacketCount(3)
+    ledModePacketCount(3),
+    hostname("milight-hub"),
+    rf24PowerLevel(RF24PowerLevelHelpers::defaultValue()),
+    rf24Channels(RF24ChannelHelpers::allValues()),
+    rf24ListenChannel(RF24Channel::RF24_LOW)
   {
     if (groupStateFields == NULL) {
       numGroupStateFields = size(DEFAULT_GROUP_STATE_FIELDS);
@@ -122,6 +133,7 @@ public:
 
   static RadioInterfaceType typeFromString(const String& s);
   static String typeToString(RadioInterfaceType type);
+  static std::vector<RF24Channel> defaultListenChannels();
 
   void save();
   String toJson(const bool prettyPrint = true);
@@ -152,6 +164,9 @@ public:
   String mqttTopicPattern;
   String mqttUpdateTopicPattern;
   String mqttStateTopicPattern;
+  String mqttLwtTopic;
+  String mqttLwtMessage;
+  String mqttBirthTopic;
   GroupStateField *groupStateFields;
   size_t numGroupStateFields;
   uint16_t discoveryPort;
@@ -167,6 +182,10 @@ public:
   LEDStatus::LEDMode ledModeOperating;
   LEDStatus::LEDMode ledModePacket;
   size_t ledModePacketCount;
+  String hostname;
+  RF24PowerLevel rf24PowerLevel;
+  std::vector<RF24Channel> rf24Channels;
+  RF24Channel rf24ListenChannel;
 
 
 protected:
