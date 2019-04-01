@@ -15,6 +15,20 @@ class ApiClient
     id
   end
 
+  def set_auth!(username, password)
+    @username = username
+    @password = password
+  end
+
+  def clear_auth!
+    @username = nil
+    @password = nil
+  end
+
+  def reboot
+    post('/system', '{"command":"restart"}')
+  end
+
   def request(type, path, req_body = nil)
     uri = URI("http://#{@host}#{path}")
     Net::HTTP.start(uri.host, uri.port) do |http|
@@ -25,6 +39,10 @@ class ApiClient
         req['Content-Type'] = 'application/json'
         req_body = req_body.to_json if !req_body.is_a?(String)
         req.body = req_body
+      end
+
+      if @username && @password
+        req.basic_auth(@username, @password)
       end
 
       res = http.request(req)
@@ -41,7 +59,7 @@ class ApiClient
   end
 
   def upload_json(path, file)
-    `curl -s "http://#{@host}#{path}" -X POST -F 'f=@settings.json'`
+    `curl -s "http://#{@host}#{path}" -X POST -F 'f=@#{file}'`
   end
 
   def get(path)
@@ -56,11 +74,23 @@ class ApiClient
     request(:Post, path, body)
   end
 
+  def delete(path)
+    request(:Delete, path)
+  end
+
+  def state_path(params = {})
+    "/gateways/#{params[:id]}/#{params[:type]}/#{params[:group_id]}"
+  end
+
+  def delete_state(params = {})
+    delete(state_path(params))
+  end
+
   def get_state(params = {})
-    get("/gateways/#{params[:id]}/#{params[:type]}/#{params[:group_id]}")
+    get(state_path(params))
   end
 
   def patch_state(state, params = {})
-    put("/gateways/#{params[:id]}/#{params[:type]}/#{params[:group_id]}", state.to_json)
+    put(state_path(params), state.to_json)
   end
 end
