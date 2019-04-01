@@ -11,3 +11,5 @@
 .vscode/launch.json
 /test/remote/settings.json
 /test/remote/espmh.env
+
+web/package-lock\.json
