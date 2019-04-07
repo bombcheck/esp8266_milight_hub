@@ -31,15 +31,8 @@ enum BulbMode {
 };
 
 enum class IncrementDirection : unsigned {
-  INCREASE = 1, 
+  INCREASE = 1,
   DECREASE = -1U
-};
-
-static const char* BULB_MODE_NAMES[] = {
-  "white",
-  "color",
-  "scene",
-  "night"
 };
 
 class GroupState {
@@ -49,8 +42,9 @@ public:
   GroupState(const GroupState& other);
   GroupState& operator=(const GroupState& other);
 
-  // Convenience constructor that patches defaults with JSON state
-  GroupState(const JsonObject& jsonState);
+  // Convenience constructor that patches transient state from a previous GroupState,
+  // and defaults with JSON state
+  GroupState(const GroupState* previousState, const JsonObject& jsonState);
 
   void initFields();
 
@@ -125,11 +119,10 @@ public:
   // than the provided group state.
   bool clearNonMatchingFields(const GroupState& other);
 
-  // Patches this state with ONLY the set fields in the other. Returns 
-  // true if there were any changes.
-  bool patch(const GroupState& other);
+  // Patches this state with ONLY the set fields in the other.
+  void patch(const GroupState& other);
 
-  // Patches this state with the fields defined in the JSON state.  Returns 
+  // Patches this state with the fields defined in the JSON state.  Returns
   // true if there were any changes.
   bool patch(const JsonObject& state);
 
@@ -141,10 +134,10 @@ public:
   void applyState(JsonObject& state, const BulbId& bulbId, GroupStateField* fields, size_t numFields) const;
 
   // Attempt to keep track of increment commands in such a way that we can
-  // know what state it's in.  When we get an increment command (like "increase 
+  // know what state it's in.  When we get an increment command (like "increase
   // brightness"):
-  //   1. If there is no value in the scratch state: assume real state is in 
-  //      the furthest value from the direction of the command.  For example, 
+  //   1. If there is no value in the scratch state: assume real state is in
+  //      the furthest value from the direction of the command.  For example,
   //      if we get "increase," assume the value was 0.
   //   2. If there is a value in the scratch state, apply the command to it.
   //      For example, if we get "decrease," subtract 1 from the scratch.
@@ -152,7 +145,7 @@ public:
   //      persistent field to that value
   //   4. If there is already a known value for the state, apply it rather
   //      than messing with scratch state.
-  // 
+  //
   // returns true if a (real, not scratch) state change was made
   bool applyIncrementCommand(GroupStateField field, IncrementDirection dir);
 
@@ -200,7 +193,7 @@ private:
   union TransientData {
     uint16_t rawData;
     struct Fields {
-      uint16_t 
+      uint16_t
         _isSetKelvinScratch     : 1,
         _kelvinScratch          : 7,
         _isSetBrightnessScratch : 1,
@@ -210,6 +203,12 @@ private:
 
   StateData state;
   TransientData scratchpad;
+
+  // State is constructed from individual command packets.  A command packet is parsed in
+  // isolation, and the result is patched onto previous state.  There are a few cases where
+  // it's necessary to know some things from the previous state, so we keep a reference to
+  // it here.
+  const GroupState* previousState;
 
   void applyColor(JsonObject& state, uint8_t r, uint8_t g, uint8_t b) const;
   void applyColor(JsonObject& state) const;
