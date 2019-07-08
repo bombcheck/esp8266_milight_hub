@@ -100,7 +100,7 @@ void RgbwPacketFormatter::enableNightMode() {
   // Turn it off if it isn't already off.
   const GroupState* state = stateStore->get(deviceId, groupId, REMOTE_TYPE_RGBW);
   if (state == NULL || state->getState() == MiLightStatus::ON) {
-    command(button, 0);
+    //command(button, 0);
   }
 
   // Night mode command has 0x10 bit set, but is otherwise
