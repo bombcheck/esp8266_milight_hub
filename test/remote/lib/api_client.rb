@@ -62,6 +62,10 @@ class ApiClient
     `curl -s "http://#{@host}#{path}" -X POST -F 'f=@#{file}'`
   end
 
+  def patch_settings(settings)
+    put('/settings', settings)
+  end
+
   def get(path)
     request(:Get, path)
   end
@@ -79,7 +83,7 @@ class ApiClient
   end
 
   def state_path(params = {})
-    "/gateways/#{params[:id]}/#{params[:type]}/#{params[:group_id]}"
+    "/gateways/#{params[:id]}/#{params[:type]}/#{params[:group_id]}?blockOnQueue=true"
   end
 
   def delete_state(params = {})

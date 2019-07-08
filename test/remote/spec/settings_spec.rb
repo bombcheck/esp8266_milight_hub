@@ -23,6 +23,22 @@ RSpec.describe 'Settings' do
     @client.clear_auth!
   end
 
+  context 'keys' do
+    it 'should persist known settings keys' do
+      {
+        'simple_mqtt_client_status' => [true, false],
+        'packet_repeats_per_loop' => [10],
+        'home_assistant_discovery_prefix' => ['', 'abc', 'a/b/c'],
+        'wifi_force_b_mode' => [true, false]
+      }.each do |key, values|
+        values.each do |v|
+          @client.patch_settings({key => v})
+          expect(@client.get('/settings')[key]).to eq(v)
+        end
+      end
+    end
+  end
+
   context 'POST settings file' do
     it 'should clobber patched settings' do
       file = Tempfile.new('espmh-settings.json')
@@ -37,7 +53,7 @@ RSpec.describe 'Settings' do
       expect(settings['mqtt_server']).to eq('test123')
 
       @client.put('/settings', {mqtt_server: 'abc123', mqtt_username: 'foo'})
-      
+
       settings = @client.get('/settings')
       expect(settings['mqtt_server']).to eq('abc123')
       expect(settings['mqtt_username']).to eq('foo')
@@ -62,6 +78,26 @@ RSpec.describe 'Settings' do
       @client.upload_json('/settings', file.path)
 
       expect { @client.get('/settings') }.to raise_error(Net::HTTPServerException)
+    end
+  end
+
+  context 'PUT settings file' do
+    it 'should accept a fairly large request body' do
+      contents = (1..25).reduce({}) { |a, x| a[x] = "test#{x}"*10; a }
+
+      expect { @client.put('/settings', contents) }.to_not raise_error
+    end
+
+    it 'should not cause excessive memory leaks' do
+      start_mem = @client.get('/about')['free_heap']
+
+      20.times do
+        @client.put('/settings', mqtt_username: 'a')
+      end
+
+      end_mem = @client.get('/about')['free_heap']
+
+      expect(end_mem - start_mem).to_not be < -200
     end
   end
 
@@ -94,6 +130,23 @@ RSpec.describe 'Settings' do
     end
   end
 
+  context 'group id labels' do
+    it 'should store ID labels' do
+      id = 1
+
+      aliases = Hash[
+        StateHelpers::ALL_REMOTE_TYPES.map do |remote_type|
+          ["test_#{id += 1}", [remote_type, id, 1]]
+        end
+      ]
+
+      @client.patch_settings(group_id_aliases: aliases)
+      settings = @client.get('/settings')
+
+      expect(settings['group_id_aliases']).to eq(aliases)
+    end
+  end
+
   context 'static ip' do
     it 'should boot with static IP when applied' do
       static_ip = ENV.fetch('ESPMH_STATIC_IP')
@@ -111,7 +164,7 @@ RSpec.describe 'Settings' do
       # Wait for it to come back up
       ping_test = Net::Ping::External.new(static_ip)
 
-      10.times do 
+      10.times do
         break if ping_test.ping?
         sleep 1
       end
@@ -124,12 +177,35 @@ RSpec.describe 'Settings' do
 
       ping_test = Net::Ping::External.new(ENV.fetch('ESPMH_HOSTNAME'))
 
-      10.times do 
+      10.times do
         break if ping_test.ping?
         sleep 1
       end
 
       expect(ping_test.ping?).to be(true)
+    end
+  end
+
+  context 'defaults' do
+    before(:all) do
+      # Clobber all settings
+      file = Tempfile.new('espmh-settings.json')
+      file.close
+
+      @client.upload_json('/settings', file.path)
+    end
+
+    it 'should have some group state fields defined' do
+      settings = @client.get('/settings')
+
+      expect(settings['group_state_fields']).to_not be_empty
+    end
+
+    it 'should allow for empty group state fields if set' do
+      @client.patch_settings(group_state_fields: [])
+      settings = @client.get('/settings')
+
+      expect(settings['group_state_fields']).to eq([])
     end
   end
 end

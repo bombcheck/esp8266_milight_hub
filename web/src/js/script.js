@@ -15,7 +15,7 @@ $(function() {
             input.val(log);
         }
     });
-  });  
+  });
 });
 
 var UNIT_PARAMS = {
@@ -79,6 +79,17 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-wifi"
   }, {
+    tag: "wifi_mode",
+    friendly: "WiFi Mode",
+    help: "Try using G mode if you're having stability problems",
+    type: "option_buttons",
+    options: {
+      'b': 'B',
+      'g': 'G',
+      'n': 'N'
+    },
+    tab: "tab-wifi"
+  }, {
     tag: "ce_pin",
     friendly: "CE / PKT pin",
     help: "Pin on ESP8266 used for 'CE' (for NRF24L01 interface) or 'PKT' (for 'PL1167/LT8900' interface)",
@@ -109,6 +120,12 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-radio"
   }, {
+    tag: "packet_repeats_per_loop",
+    friendly: "Packet repeats per loop",
+    help: "Number of repeats to send in a single go.  Higher values mean more throughput, but less multitasking.",
+    type: "string",
+    tab: "tab-radio"
+  }, {
     tag: "http_repeat_factor",
     friendly: "HTTP repeat factor",
     help: "Multiplicative factor on packet_repeats for requests initiated by the HTTP API. UDP API typically receives " +
@@ -134,13 +151,13 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag: "mqtt_topic_pattern", 
+    tag: "mqtt_topic_pattern",
     friendly: "MQTT topic pattern",
     help: "Pattern for MQTT topics to listen on. Example: lights/:device_id/:device_type/:group_id. See README for further details",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_update_topic_pattern", 
+    tag:   "mqtt_update_topic_pattern",
     friendly: "MQTT update topic pattern",
     help: "Pattern to publish MQTT updates. Packets that are received from other devices, and packets that are sent from this device will " +
     "result in updates being sent",
@@ -153,37 +170,41 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_username", 
+    tag:   "mqtt_username",
     friendly: "MQTT user name",
     help: "User name to log in to MQTT server",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_password", 
+    tag:   "mqtt_password",
     friendly: "MQTT password",
     help: "Password to log into MQTT server",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_lwt_topic", 
-    friendly: "MQTT LWT Topic",
-    help: "Topic to use for LWT message (leave blank to disable LWT)",
+    tag:   "mqtt_client_status_topic",
+    friendly: "MQTT Client Status Topic",
+    help: "Connection status messages will be published to this topic.  This includes LWT and birth.  See README for further detail.",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_lwt_message", 
-    friendly: "MQTT LWT Message",
-    help: "LWT Message - sent when client disconnects uncleanly",
+    tag:   "simple_mqtt_client_status",
+    friendly: "Client Status Messages Mode",
+    help: "In simple mode, only the strings 'connected' and 'disconnected' will be published.  In detailed mode, data about the version, IP address, etc. will be included.",
+    type: "option_buttons",
+    options: {
+      true: "Simple",
+      false: "Detailed"
+    },
+    tab: "tab-mqtt"
+  }, {
+    tag: "home_assistant_discovery_prefix",
+    friendly: "HomeAssistant MQTT Discovery Prefix",
+    help: "If set, will enable integration with HomeAssistant's MQTT discovery functionality to allow saved aliases to be detected automatically",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_birth_topic", 
-    friendly: "MQTT Birth Topic",
-    help: "Birth Topic - JSON blob with system details will be sent to this topic upon connection",
-    type: "string",
-    tab: "tab-mqtt"
-  }, {
-    tag:   "radio_interface_type", 
+    tag:   "radio_interface_type",
     friendly: "Radio interface type",
     help: "2.4 GHz radio model. Only change this if you know you're not using an NRF24L01!",
     type: "option_buttons",
@@ -193,7 +214,7 @@ var UI_FIELDS = [ {
     },
     tab: "tab-radio"
   }, {
-    tag:   "rf24_power_level", 
+    tag:   "rf24_power_level",
     friendly: "nRF24 Power Level",
     help: "Power level for nRF24L01",
     type: "option_buttons",
@@ -205,7 +226,7 @@ var UI_FIELDS = [ {
     },
     tab: "tab-radio"
   }, {
-    tag:   "rf24_listen_channel", 
+    tag:   "rf24_listen_channel",
     friendly: "nRF24 Listen Channel",
     help: "Which channels to listen for messages on the nRF24",
     type: "option_buttons",
@@ -216,7 +237,7 @@ var UI_FIELDS = [ {
     },
     tab: "tab-radio"
   }, {
-    tag:   "rf24_channels", 
+    tag:   "rf24_channels",
     friendly: "nRF24 Send Channels",
     help: "Which channels to send messages on for the nRF24.  Using fewer channels speeds up sends.",
     type: "option_buttons",
@@ -237,14 +258,14 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-wifi"
   }, {
-    tag:   "state_flush_interval", 
+    tag:   "state_flush_interval",
     friendly: "State flush interval",
     help: "Minimum number of milliseconds between flushing state to flash. " +
     "Set to 0 to disable delay and immediately persist state to flash",
     type: "string",
     tab: "tab-setup"
   }, {
-    tag:   "mqtt_state_rate_limit", 
+    tag:   "mqtt_state_rate_limit",
     friendly: "MQTT state rate limit",
     help: "Minimum number of milliseconds between MQTT updates of bulb state (defaults to 500)",
     type: "string",
@@ -259,7 +280,7 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-radio"
   }, {
-    tag:   "packet_repeat_throttle_sensitivity", 
+    tag:   "packet_repeat_throttle_sensitivity",
     friendly: "Packet repeat throttle sensitivity",
     help: "Controls how packet repeats are throttled. " +
     "Higher values cause packets to be throttled up and down faster " +
@@ -267,7 +288,7 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-radio"
   }, {
-    tag:   "packet_repeat_minimum", 
+    tag:   "packet_repeat_minimum",
     friendly: "Packet repeat minimum",
     help: "Controls how far throttling can decrease the number " +
     "of repeated packets (defaults to 3)",
@@ -280,7 +301,7 @@ var UI_FIELDS = [ {
     type: "group_state_fields",
     tab: "tab-mqtt"
   }, {
-    tag:   "enable_automatic_mode_switching", 
+    tag:   "enable_automatic_mode_switching",
     friendly: "Enable automatic mode switching",
     help: "For RGBWW bulbs (using RGB+CCT or FUT089), enables automatic switching between modes in order to affect changes to " +
     "temperature and saturation when otherwise it would not work",
@@ -319,7 +340,7 @@ var UI_FIELDS = [ {
     friendly: "Flash count on packets",
     help: "Number of times the LED will flash when packets are changing",
     type: "string",
-    tab: "tab-led"    
+    tab: "tab-led"
   }
 ];
 
@@ -358,8 +379,15 @@ var UDP_PROTOCOL_VERSIONS = [ 5, 6 ];
 var DEFAULT_UDP_PROTOCL_VERSION = 5;
 
 var selectize;
+var aliasesSelectize;
 var sniffing = false;
 var loadingSettings = false;
+
+// When true, will not attempt to load group parameters
+var updatingGroupId = false;
+
+// When true, will not attempt to update group parameters
+var updatingAlias = false;
 
 // don't attempt websocket if we are debugging locally
 if (location.hostname != "") {
@@ -376,9 +404,60 @@ var toHex = function(v) {
   return "0x" + (v).toString(16).toUpperCase();
 }
 
+var updateGroupId = function(params) {
+  updatingGroupId = true;
+
+  selectize.setValue(params.deviceId);
+  setGroupId(params.groupId);
+  setMode(params.deviceType);
+
+  updatingGroupId = false;
+
+  refreshGroupState();
+}
+
+var setGroupId = function(value) {
+  $('#groupId input[data-value="' + value + '"]').click();
+}
+
+var setMode = function(value) {
+  $('#mode li[data-value="' + value + '"]').click();
+}
+
+var getCurrentDeviceId = function() {
+  // return $('#deviceId option:selected').val();
+  return parseInt(selectize.getValue());
+};
+
+var getCurrentGroupId = function() {
+  return $('#groupId .active input').data('value');
+}
+
+var findAndSelectAlias = function() {
+  if (!updatingGroupId) {
+    var params = {
+      deviceType: getCurrentMode(),
+      deviceId: getCurrentDeviceId(),
+      groupId: getCurrentGroupId()
+    };
+
+    var foundAlias = Object.entries(aliasesSelectize.options).filter(function(x) {
+      return _.isEqual(x[1].savedGroupParams, params);
+    });
+
+    updatingAlias = true;
+    if (foundAlias.length > 0) {
+      aliasesSelectize.setValue(foundAlias[0]);
+    } else {
+      aliasesSelectize.clear();
+    }
+    updatingAlias = false;
+  }
+}
+
 var activeUrl = function() {
-  var deviceId = $('#deviceId option:selected').val()
-    , groupId = $('#groupId .active input').data('value')
+  var deviceId = getCurrentDeviceId()
+    , groupId = getCurrentGroupId()
     , mode = getCurrentMode();
 
   if (deviceId == "") {
@@ -396,6 +475,17 @@ var activeUrl = function() {
   return "/gateways/" + deviceId + "/" + mode + "/" + groupId;
 }
 
+var refreshGroupState = function() {
+  if (! updatingGroupId) {
+    $.getJSON(
+      activeUrl(),
+      function(e) {
+        handleStateUpdate(e);
+      }
+    );
+  }
+}
+
 var getCurrentMode = function() {
   return $('#mode li.active').data('value');
 };
@@ -404,7 +494,7 @@ var updateGroup = _.throttle(
   function(params) {
     try {
       $.ajax({
-        url: activeUrl(),
+        url: activeUrl() + "?blockOnQueue=true",
         method: 'PUT',
         data: JSON.stringify(params),
         contentType: 'application/json',
@@ -494,12 +584,34 @@ var loadSettings = function() {
       }
     });
 
+    if (val.group_id_aliases) {
+      aliasesSelectize.clearOptions();
+      Object.entries(val.group_id_aliases).forEach(function(entry) {
+        var label = entry[0]
+          , groupParams = entry[1]
+          , savedParams = {
+                deviceType: groupParams[0],
+                deviceId: groupParams[1],
+                groupId: groupParams[2]
+            }
+          ;
+
+        aliasesSelectize.addOption({
+          text: label,
+          value: label,
+          savedGroupParams: savedParams
+        });
+
+        aliasesSelectize.refreshOptions(false);
+      });
+    }
+
     if (val.device_ids) {
       selectize.clearOptions();
       val.device_ids.forEach(function(v) {
         selectize.addOption({text: toHex(v), value: v});
       });
-      selectize.refreshOptions();
+      selectize.refreshOptions(false);
     }
 
     if (val.group_state_fields) {
@@ -588,6 +700,19 @@ var saveGatewayConfigs = function() {
   }
 };
 
+var patchSettings = function(patch) {
+  if (!loadingSettings) {
+    $.ajax(
+      "/settings",
+      {
+        method: 'put',
+        contentType: 'application/json',
+        data: JSON.stringify(patch)
+      }
+    );
+  }
+};
+
 var saveDeviceIds = function() {
   if (!loadingSettings) {
     var deviceIds = _.map(
@@ -597,14 +722,28 @@ var saveDeviceIds = function() {
       }
     );
 
-    $.ajax(
-      "/settings",
-      {
-        method: 'put',
-        contentType: 'application/json',
-        data: JSON.stringify({device_ids: deviceIds})
-      }
+    patchSettings({device_ids: deviceIds});
+  }
+};
+
+var saveDeviceAliases = function() {
+  if (!loadingSettings) {
+    var deviceAliases = Object.entries(aliasesSelectize.options).reduce(
+      function(aggregate, x) {
+        var params = x[1].savedGroupParams;
+
+        aggregate[x[0]] = [
+          params.deviceType,
+          params.deviceId,
+          params.groupId
+        ]
+
+        return aggregate;
+      },
+      {}
     );
+
+    patchSettings({group_id_aliases: deviceAliases});
   }
 };
 
@@ -612,6 +751,12 @@ var deleteDeviceId = function() {
   selectize.removeOption($(this).data('value'));
   selectize.refreshOptions();
   saveDeviceIds();
+};
+
+var deleteDeviceAlias = function() {
+  aliasesSelectize.removeOption($(this).data('value'));
+  aliasesSelectize.refreshOptions();
+  saveDeviceAliases();
 };
 
 var deviceIdError = function(v) {
@@ -851,7 +996,7 @@ $(function() {
 
   $('.raw-update').change(function() {
     var data = {}
-      , val = $(this).attr('type') == 'checkbox' ? $(this).is(':checked') : $(this).val()
+      , val = $(this).attr('type') == 'checkbox' ? ($(this).is(':checked') ? 'on' : 'off') : $(this).val()
       ;
 
     data[$(this).attr('name')] = val;
@@ -909,26 +1054,66 @@ $(function() {
     return false;
   });
 
-  $('input[name="mode"],input[name="options"],#deviceId').change(function(e) {
+  var onGroupParamsChange = function(e) {
+    findAndSelectAlias();
     try {
-      $.getJSON(
-        activeUrl(),
-        function(e) {
-          handleStateUpdate(e);
-        }
-      );
+      refreshGroupState();
     } catch (e) {
       // Skip
     }
-  });
+  };
+
+  $('input[name="options"],#deviceId').change(onGroupParamsChange);
+  $('#mode li').click(onGroupParamsChange);
+
+  aliasesSelectize = $('#deviceAliases').selectize({
+    create: true,
+    allowEmptyOption: true,
+    openOnFocus: true,
+    createOnBlur: true,
+    render: {
+      option: function(data, escape) {
+        // Mousedown selects an option -- prevent event from bubbling up to select option
+        // when delete button is clicked.
+        var deleteBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-trash"></i></a></span>')
+          .mousedown(function(e) {
+            e.preventDefault();
+            return false;
+          })
+          .click(function(e) {
+            deleteDeviceAlias.call($(this).closest('.c-selectize-item'));
+            e.preventDefault();
+            return false;
+          });
+
+        var elmt = $('<div class="c-selectize-item"></div>');
+        elmt.append('<span>' + data.text + '</span>');
+        elmt.append(deleteBtn);
+
+        return elmt;
+      }
+    },
+    onOptionAdd: function(v, item) {
+      if (!item.savedGroupParams) {
+        item.savedGroupParams = {
+          deviceId: getCurrentDeviceId(),
+          groupId: getCurrentGroupId(),
+          deviceType: getCurrentMode()
+        };
+      }
+
+      saveDeviceAliases();
+    }
+  })[0].selectize;
 
   selectize = $('#deviceId').selectize({
     create: true,
     sortField: 'value',
     allowEmptyOption: true,
+    createOnBlur: true,
     render: {
       option: function(data, escape) {
-        // Mousedown selects an option -- prevent event from bubbling up to select option 
+        // Mousedown selects an option -- prevent event from bubbling up to select option
         // when delete button is clicked.
         var deleteBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-trash"></i></a></span>')
           .mousedown(function(e) {
@@ -1028,7 +1213,7 @@ $(function() {
     });
     settings += "</div>";
   });
-  
+
   // UDP gateways tab
   settings += '<div class="tab-pane fade ' + tabClass + '" id="tab-udp-gateways">';
   settings += $('#gateway-servers-modal .modal-body').remove().html();
@@ -1060,7 +1245,7 @@ $(function() {
           }
 
           return a;
-        }, 
+        },
         {
           // Make sure the value is always an array, even if a single item is selected
           rf24_channels: []
@@ -1081,7 +1266,7 @@ $(function() {
     }
 
     $('#settings-modal').modal('hide');
-    
+
     return false;
   });
 
@@ -1116,6 +1301,16 @@ $(function() {
     input.trigger('fileselect', [label]);
   });
 
+  $(document).on('change', '#deviceAliases', function() {
+    var selectedValue = aliasesSelectize.getValue()
+      , selectizeItem = aliasesSelectize.options[selectedValue]
+      ;
+
+    if (selectizeItem && !updatingAlias) {
+      updateGroupId(selectizeItem.savedGroupParams);
+    }
+  });
+
   $(document).ready( function() {
     $(':file').on('fileselect', function(event, label) {
 
@@ -1126,5 +1321,5 @@ $(function() {
             input.val(log);
         }
     });
-  });  
+  });
 });

@@ -6,84 +6,28 @@
 #include <TokenIterator.h>
 
 MiLightClient::MiLightClient(
-  MiLightRadioFactory* radioFactory,
+  RadioSwitchboard& radioSwitchboard,
+  PacketSender& packetSender,
   GroupStateStore* stateStore,
-  Settings* settings
-)
-  : currentRadio(NULL),
-    currentRemote(NULL),
-    numRadios(MiLightRadioConfig::NUM_CONFIGS),
-    packetSentHandler(NULL),
-    updateBeginHandler(NULL),
-    updateEndHandler(NULL),
-    stateStore(stateStore),
-    settings(settings),
-    lastSend(0),
-    baseResendCount(MILIGHT_DEFAULT_RESEND_COUNT)
-{
-  radios = new MiLightRadio*[numRadios];
-
-  for (size_t i = 0; i < numRadios; i++) {
-    radios[i] = radioFactory->create(MiLightRadioConfig::ALL_CONFIGS[i]);
-  }
-}
-
-void MiLightClient::begin() {
-  for (size_t i = 0; i < numRadios; i++) {
-    radios[i]->begin();
-  }
-
-  switchRadio(static_cast<size_t>(0));
-
-  // Little gross to do this here as it's relying on global state.  A better alternative
-  // would be to statically construct remote config factories which take in a stateStore
-  // and settings pointer.  The objects could then be initialized by calling the factory
-  // in main.
-  for (size_t i = 0; i < MiLightRemoteConfig::NUM_REMOTES; i++) {
-    MiLightRemoteConfig::ALL_REMOTES[i]->packetFormatter->initialize(stateStore, settings);
-  }
-}
+  Settings& settings
+) : radioSwitchboard(radioSwitchboard)
+  , updateBeginHandler(NULL)
+  , updateEndHandler(NULL)
+  , stateStore(stateStore)
+  , settings(settings)
+  , packetSender(packetSender)
+  , repeatsOverride(0)
+{ }
 
 void MiLightClient::setHeld(bool held) {
   currentRemote->packetFormatter->setHeld(held);
 }
 
-size_t MiLightClient::getNumRadios() const {
-  return numRadios;
-}
-
-MiLightRadio* MiLightClient::switchRadio(size_t radioIx) {
-  if (radioIx >= getNumRadios()) {
-    return NULL;
-  }
-
-  if (this->currentRadio != radios[radioIx]) {
-    this->currentRadio = radios[radioIx];
-    this->currentRadio->configure();
-  }
-
-  return this->currentRadio;
-}
-
-MiLightRadio* MiLightClient::switchRadio(const MiLightRemoteConfig* remoteConfig) {
-  MiLightRadio* radio = NULL;
-
-  for (size_t i = 0; i < numRadios; i++) {
-    if (&this->radios[i]->config() == &remoteConfig->radioConfig) {
-      radio = switchRadio(i);
-      break;
-    }
-  }
-
-  return radio;
-}
-
-void MiLightClient::prepare(const MiLightRemoteConfig* config,
+void MiLightClient::prepare(
+  const MiLightRemoteConfig* config,
   const uint16_t deviceId,
   const uint8_t groupId
 ) {
-  switchRadio(config);
-
   this->currentRemote = config;
 
   if (deviceId >= 0 && groupId >= 0) {
@@ -91,68 +35,12 @@ void MiLightClient::prepare(const MiLightRemoteConfig* config,
   }
 }
 
-void MiLightClient::prepare(const MiLightRemoteType type,
+void MiLightClient::prepare(
+  const MiLightRemoteType type,
   const uint16_t deviceId,
   const uint8_t groupId
 ) {
   prepare(MiLightRemoteConfig::fromType(type), deviceId, groupId);
-}
-
-void MiLightClient::setResendCount(const unsigned int resendCount) {
-  this->baseResendCount = resendCount;
-  this->currentResendCount = resendCount;
-  this->throttleMultiplier = ceil((settings->packetRepeatThrottleSensitivity / 1000.0) * this->baseResendCount);
-}
-
-bool MiLightClient::available() {
-  if (currentRadio == NULL) {
-    return false;
-  }
-
-  return currentRadio->available();
-}
-
-size_t MiLightClient::read(uint8_t packet[]) {
-  if (currentRadio == NULL) {
-    return 0;
-  }
-
-  size_t length;
-  currentRadio->read(packet, length);
-
-  return length;
-}
-
-void MiLightClient::write(uint8_t packet[]) {
-  if (currentRadio == NULL) {
-    return;
-  }
-
-#ifdef DEBUG_PRINTF
-  Serial.printf_P(PSTR("Sending packet (%d repeats): \n"), this->currentResendCount);
-  for (int i = 0; i < currentRemote->packetFormatter->getPacketLength(); i++) {
-    Serial.printf_P(PSTR("%02X "), packet[i]);
-  }
-  Serial.println();
-  int iStart = millis();
-#endif
-
-  // send the packet out (multiple times for "reliability")
-  for (int i = 0; i < this->currentResendCount; i++) {
-    currentRadio->write(packet, currentRemote->packetFormatter->getPacketLength());
-  }
-
-  // if we have a packetSendHandler defined (see MiLightClient::onPacketSent), call it now that
-  // the packet has been dispatched
-  if (this->packetSentHandler) {
-    this->packetSentHandler(packet, *currentRemote);
-  }
-
-#ifdef DEBUG_PRINTF
-  int iElapsed = millis() - iStart;
-  Serial.print("Elapsed: ");
-  Serial.println(iElapsed);
-#endif
 }
 
 void MiLightClient::updateColorRaw(const uint8_t color) {
@@ -330,7 +218,7 @@ void MiLightClient::toggleStatus() {
   flushPacket();
 }
 
-void MiLightClient::update(const JsonObject& request) {
+void MiLightClient::update(JsonObject request) {
   if (this->updateBeginHandler) {
     this->updateBeginHandler();
   }
@@ -347,11 +235,11 @@ void MiLightClient::update(const JsonObject& request) {
   }
 
   if (request.containsKey("commands")) {
-    JsonArray& commands = request["commands"];
+    JsonArray commands = request["commands"];
 
-    if (commands.success()) {
+    if (! commands.isNull()) {
       for (size_t i = 0; i < commands.size(); i++) {
-        this->handleCommand(commands.get<String>(i));
+        this->handleCommand(commands[i].as<const char*>());
       }
     }
   }
@@ -373,7 +261,7 @@ void MiLightClient::update(const JsonObject& request) {
     uint16_t r, g, b;
 
     if (request["color"].is<JsonObject>()) {
-      JsonObject& color = request["color"];
+      JsonObject color = request["color"];
 
       r = color["r"];
       g = color["g"];
@@ -422,7 +310,7 @@ void MiLightClient::update(const JsonObject& request) {
   }
   // HomeAssistant
   if (request.containsKey("brightness")) {
-    uint8_t scaledBrightness = Units::rescale(request.get<uint8_t>("brightness"), 100, 255);
+    uint8_t scaledBrightness = Units::rescale(request["brightness"].as<uint8_t>(), 100, 255);
     this->updateBrightness(scaledBrightness);
   }
 
@@ -498,54 +386,41 @@ void MiLightClient::handleEffect(const String& effect) {
   }
 }
 
-uint8_t MiLightClient::parseStatus(const JsonObject& object) {
-  String strStatus;
+uint8_t MiLightClient::parseStatus(JsonObject object) {
+  JsonVariant status;
 
   if (object.containsKey("status")) {
-    strStatus = object.get<char*>("status");
+    status = object["status"];
   } else if (object.containsKey("state")) {
-    strStatus = object.get<char*>("state");
+    status = object["state"];
   } else {
     return 255;
   }
 
-  return (strStatus.equalsIgnoreCase("on") || strStatus.equalsIgnoreCase("true")) ? ON : OFF;
+  if (status.is<bool>()) {
+    return status.as<bool>() ? ON : OFF;
+  } else {
+    String strStatus(status.as<const char*>());
+    return (strStatus.equalsIgnoreCase("on") || strStatus.equalsIgnoreCase("true")) ? ON : OFF;
+  }
 }
 
-void MiLightClient::updateResendCount() {
-  unsigned long now = millis();
-  long millisSinceLastSend = now - lastSend;
-  long x = (millisSinceLastSend - settings->packetRepeatThrottleThreshold);
-  long delta = x * throttleMultiplier;
+void MiLightClient::setRepeatsOverride(size_t repeats) {
+  this->repeatsOverride = repeats;
+}
 
-  this->currentResendCount = constrain(
-    static_cast<size_t>(this->currentResendCount + delta),
-    settings->packetRepeatMinimum,
-    this->baseResendCount
-  );
-  this->lastSend = now;
+void MiLightClient::clearRepeatsOverride() {
+  this->repeatsOverride = PacketSender::DEFAULT_PACKET_SENDS_VALUE;
 }
 
 void MiLightClient::flushPacket() {
   PacketStream& stream = currentRemote->packetFormatter->buildPackets();
-  updateResendCount();
 
   while (stream.hasNext()) {
-    write(stream.next());
-
-    if (stream.hasNext()) {
-      delay(10);
-    }
+    packetSender.enqueue(stream.next(), currentRemote, repeatsOverride);
   }
 
   currentRemote->packetFormatter->reset();
-}
-
-/*
-  Register a callback for when packets are sent
-*/
-void MiLightClient::onPacketSent(PacketSentHandler handler) {
-  this->packetSentHandler = handler;
 }
 
 void MiLightClient::onUpdateBegin(EventHandler handler) {
