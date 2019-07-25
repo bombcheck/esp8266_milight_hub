@@ -15,6 +15,40 @@ RSpec.describe 'State' do
     @client.delete_state(@id_params)
   end
 
+  context 'blockOnQueue parameter' do
+    it 'should not receive state if we don\'t block on the packet queue' do
+      response = @client.patch_state({status: 'ON'}, @id_params.merge(blockOnQueue: false))
+
+      expect(response).to eq({'success' => true})
+    end
+
+    it 'should receive state if we do block on the packet queue' do
+      response = @client.patch_state({status: 'ON'}, @id_params.merge(blockOnQueue: true))
+
+      expect(response).to eq({'status' => 'ON'})
+    end
+  end
+
+  context 'initial state' do
+    it 'should assume white mode for device types that are white-only' do
+      %w(cct fut091).each do |type|
+        id = @id_params.merge(type: type)
+        @client.delete_state(id)
+        state = @client.patch_state({status: 'ON'}, id)
+        expect(state['bulb_mode']).to eq('white'), "it should assume white mode for #{type}"
+      end
+    end
+
+    it 'should assume color mode for device types that are rgb-only' do
+      %w(rgb).each do |type|
+        id = @id_params.merge(type: type)
+        @client.delete_state(id)
+        state = @client.patch_state({status: 'ON'}, id)
+        expect(state['bulb_mode']).to eq('color'), "it should assume color mode for #{type}"
+      end
+    end
+  end
+
   context 'toggle command' do
     it 'should toggle ON to OFF' do
       init_state = @client.patch_state({'status' => 'ON'}, @id_params)
@@ -459,6 +493,24 @@ RSpec.describe 'State' do
         expect(state['saturation']).to eq(100)
         expect(state['hue']).to eq(0)
       end
+    end
+  end
+
+  context 'fut020' do
+    it 'should support fut020 commands' do
+      id = @id_params.merge(type: 'fut020', group_id: 0)
+      @client.delete_state(id)
+      state = @client.patch_state({status: 'ON'}, id)
+
+      expect(state['status']).to eq('ON')
+    end
+
+    it 'should assume the "off" command sets state to on... commands are the same' do
+      id = @id_params.merge(type: 'fut020', group_id: 0)
+      @client.delete_state(id)
+      state = @client.patch_state({status: 'OFF'}, id)
+
+      expect(state['status']).to eq('ON')
     end
   end
 end
