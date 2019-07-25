@@ -585,7 +585,7 @@ var loadSettings = function() {
     });
 
     if (val.hostname) {
-      var title = "MiLight Hub: " + val.hostname;
+      var title = "FB.MiLight-Hub [" + val.hostname + "]";
       document.title = title;
       $('.navbar-brand').html(title);
     }
