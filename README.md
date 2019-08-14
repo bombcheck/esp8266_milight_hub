@@ -116,26 +116,6 @@ If it does not work as expected see [Troubleshooting](https://github.com/sidoh/e
 
 If you need to pair some bulbs, how to do this is [described in the wiki](https://github.com/sidoh/esp8266_milight_hub/wiki/Pairing-new-bulbs).
 
-## LED Status
-
-Some ESP boards have a built-in LED, on pin #2.  This LED will flash to indicate the current status of the hub:
-
-* Wifi not configured: Fast flash (on/off once per second).  See [Configure Wifi](#configure-wifi) to configure the hub.
-* Wifi connected and ready: Occasional blips of light (a flicker of light every 1.5 seconds).
-* Packets sending/receiving: Rapid blips of light for brief periods (three rapid flashes).
-* Wifi failed to configure: Solid light.
-
-In the setup UI, you can turn on "enable_solid_led" to change the LED behavior to:
-
-* Wifi connected and ready: Solid LED light
-* Wifi failed to configure: Light off
-
-Note that you must restart the hub to affect the change in "enable_solid_led".
-
-You can configure the LED pin from the web console.  Note that pin means the GPIO number, not the D number ... for example, D2 is actually GPIO4 and therefore its pin 4.  If you specify the pin as a negative number, it will invert the LED signal (the built-in LED on pin 2 is inverted, so the default is -2).
-
-If you want to wire up your own LED on a pin, such as on D2/GPIO4, put a wire from D2 to one side of a 220 ohm resister.  On the other side, connect it to the positive side (the longer wire) of a 3.3V LED.  Then connect the negative side of the LED (the shorter wire) to ground.  If you use a different voltage LED, or a high current LED, you will need to add a driver circuit.
-
 ## Device Aliases
 
 You can configure aliases or labels for a given _(Device Type, Device ID, Group ID)_ tuple.  For example, you might want to call the RGB+CCT remote with the ID `0x1111` and the Group ID `1` to be called `living_room`.  Aliases are useful in a couple of different ways:
@@ -150,7 +130,7 @@ The REST API is specified using
 
 [openapi.yaml](openapi.yaml) contains the raw spec, created using [OpenAPI v3](https://swagger.io/docs/specification/about/).
 
-[You can view generated documentation for the master branch here.](https://sidoh.github.io/esp8266_milight_hub/master)
+[You can view generated documentation for the master branch here.](https://sidoh.github.io/esp8266_milight_hub/branches/latest)
 
 [Docs for other branches can be found here](https://sidoh.github.io/esp8266_milight_hub)
 
@@ -243,6 +223,61 @@ If you wish to have the simple messages `connected` and `disconnected` instead o
 You can add an arbitrary number of UDP gateways through the REST API or through the web UI. Each gateway server listens on a port and responds to the standard set of commands supported by the Milight protocol. This should allow you to use one of these with standard Milight integrations (SmartThings, Home Assistant, OpenHAB, etc.).
 
 You can select between versions 5 and 6 of the UDP protocol (documented [here](http://www.limitlessled.com/dev/)). Version 6 has support for the newer RGB+CCT bulbs and also includes response packets, which can theoretically improve reliability. Version 5 has much smaller packets and is probably lower latency.
+
+## Transitions
+
+Transitions between two given states are supported.  Depending on how transition commands are being issued, the duration and smoothness of the transition are both configurable.  There are a few ways to use transitions:
+
+#### RESTful `/transitions` routes
+
+These routes are fully documented in the [REST API documentation](https://sidoh.github.io/esp8266_milight_hub/branches/latest/#tag/Transitions).
+
+#### `transition` field when issuing commands
+
+When you issue a command to a bulb either via REST or MQTT, you can include a `transition` field.  The value of this field specifies the duration of the transition, in seconds (non-integer values are supported).
+
+For example, the command:
+
+```json
+{"brightness":255,"transition":60}
+```
+
+will transition from whatever the current brightness is to `brightness=255` over 60 seconds.
+
+#### Notes on transitions
+
+* espMH's transitions should work seamlessly with [HomeAssistant's transition functionality](https://www.home-assistant.io/components/light/).
+* You can issue commands specifying transitions between many fields at once.  For example:
+  ```json
+  {"brightness":255,"kelvin":0,"transition":10.5}
+  ```
+  will transition from current values for brightness and kelvin to the specified values -- 255 and 0 respectively -- over 10.5 seconds.
+* Color transitions are supported.  Under the hood, this is treated as a transition between current values for r, g, and b to the r, g, b values for the specified color.  Because milight uses hue-sat colors, this might not behave exactly as you'd expect for all colors.
+* You can transition to a given `status` or `state`.  For example,
+  ```json
+  {"status":"ON","transition":10}
+  ```
+  will turn the bulb on, immediately set the brightness to 0, and then transition to brightness=255 over 10 seconds.  If you specify a brightness value, the transition will stop there instead of 255.
+
+## LED Status
+
+Some ESP boards have a built-in LED, on pin #2.  This LED will flash to indicate the current status of the hub:
+
+* Wifi not configured: Fast flash (on/off once per second).  See [Configure Wifi](#configure-wifi) to configure the hub.
+* Wifi connected and ready: Occasional blips of light (a flicker of light every 1.5 seconds).
+* Packets sending/receiving: Rapid blips of light for brief periods (three rapid flashes).
+* Wifi failed to configure: Solid light.
+
+In the setup UI, you can turn on "enable_solid_led" to change the LED behavior to:
+
+* Wifi connected and ready: Solid LED light
+* Wifi failed to configure: Light off
+
+Note that you must restart the hub to affect the change in "enable_solid_led".
+
+You can configure the LED pin from the web console.  Note that pin means the GPIO number, not the D number ... for example, D2 is actually GPIO4 and therefore its pin 4.  If you specify the pin as a negative number, it will invert the LED signal (the built-in LED on pin 2 is inverted, so the default is -2).
+
+If you want to wire up your own LED on a pin, such as on D2/GPIO4, put a wire from D2 to one side of a 220 ohm resister.  On the other side, connect it to the positive side (the longer wire) of a 3.3V LED.  Then connect the negative side of the LED (the shorter wire) to ground.  If you use a different voltage LED, or a high current LED, you will need to add a driver circuit.
 
 ## Development
 

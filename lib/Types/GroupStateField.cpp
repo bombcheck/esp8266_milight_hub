@@ -19,7 +19,8 @@ static const char* STATE_NAMES[] = {
   GroupStateFieldNames::DEVICE_ID,
   GroupStateFieldNames::GROUP_ID,
   GroupStateFieldNames::DEVICE_TYPE,
-  GroupStateFieldNames::OH_COLOR
+  GroupStateFieldNames::OH_COLOR,
+  GroupStateFieldNames::HEX_COLOR
 };
 
 GroupStateField GroupStateFieldHelpers::getFieldByName(const char* name) {
@@ -38,4 +39,14 @@ const char* GroupStateFieldHelpers::getFieldName(GroupStateField field) {
     }
   }
   return STATE_NAMES[0];
+}
+
+bool GroupStateFieldHelpers::isBrightnessField(GroupStateField field) {
+  switch (field) {
+    case GroupStateField::BRIGHTNESS:
+    case GroupStateField::LEVEL:
+      return true;
+    default:
+      return false;
+  }
 }

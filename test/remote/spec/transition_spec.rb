@@ -321,7 +321,32 @@ RSpec.describe 'Transitions' do
       )
     end
 
-    it 'should transition from off -> on with known last brightness' do
+    it 'should transition from off -> on from 0 to a provided brightness, event when there is a last known brightness' do
+      seen_updates = {}
+      @client.patch_state({status: 'ON', brightness: 99}, @id_params)
+      @client.patch_state({status: 'OFF'}, @id_params)
+
+      @mqtt_client.on_update(@id_params) do |id, message|
+        message.each do |k, v|
+          seen_updates[k] ||= []
+          seen_updates[k] << v
+        end
+        seen_updates['brightness'] && seen_updates['brightness'].last == 128
+      end
+
+      @client.patch_state({status: 'ON', brightness: 128, transition: 1.0}, @id_params)
+
+      @mqtt_client.wait_for_listeners
+
+      transitions_are_equal(
+        expected: calculate_transition_steps(start_value: 0, end_value: 128, duration: 1000),
+        seen: seen_updates['brightness'],
+        # Allow some variation for the lossy level -> brightness conversion
+        allowed_variation: 4
+      )
+    end
+
+    it 'should transition from off -> on from 0 to 100, even when there is a last known brightness' do
       seen_updates = {}
       @client.patch_state({status: 'ON', brightness: 99}, @id_params)
       @client.patch_state({status: 'OFF'}, @id_params)
@@ -339,7 +364,7 @@ RSpec.describe 'Transitions' do
       @mqtt_client.wait_for_listeners
 
       transitions_are_equal(
-        expected: calculate_transition_steps(start_value: 99, end_value: 255, duration: 1000),
+        expected: calculate_transition_steps(start_value: 0, end_value: 255, duration: 1000),
         seen: seen_updates['brightness'],
         # Allow some variation for the lossy level -> brightness conversion
         allowed_variation: 4
@@ -364,6 +389,34 @@ RSpec.describe 'Transitions' do
 
       transitions_are_equal(
         expected: calculate_transition_steps(start_value: 99, end_value: 0, duration: 1000),
+        seen: seen_updates['brightness'],
+        # Allow some variation for the lossy level -> brightness conversion
+        allowed_variation: 3
+      )
+    end
+
+    it 'should not transition to 100% if a brightness is specified' do
+      seen_updates = {}
+
+      # Set a last known level
+      @client.patch_state({status: 'ON', level: 0}, @id_params)
+      @client.patch_state({status: 'OFF'}, @id_params)
+
+      @mqtt_client.on_update(@id_params) do |id, message|
+        message.each do |k, v|
+          seen_updates[k] ||= []
+          seen_updates[k] << v
+        end
+        seen_updates['brightness'] && seen_updates['brightness'].last == 128
+      end
+
+      @client.patch_state({status: 'ON', brightness: 128, transition: 1.0}, @id_params)
+
+      @mqtt_client.wait_for_listeners
+
+      expect(seen_updates['state']).to eq(['ON'])
+      transitions_are_equal(
+        expected: calculate_transition_steps(start_value: 0, end_value: 128, duration: 1000),
         seen: seen_updates['brightness'],
         # Allow some variation for the lossy level -> brightness conversion
         allowed_variation: 3
@@ -534,14 +587,6 @@ RSpec.describe 'Transitions' do
   end
 
   context 'computed parameters' do
-    # it 'should accept no length parameters' do
-    #   result = @client.schedule_transition(@id_params, field: 'kelvin', end_value: 100)
-
-    #   puts @transition_defaults
-
-    #   expect(result).to eq({'success' => true})
-    # end
-
     (@transition_defaults = {
       duration: {default: 4.5, test: 2},
       num_periods: {default: 10, test: 5},

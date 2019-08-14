@@ -40,6 +40,14 @@ void HomeAssistantDiscoveryClient::addConfig(const char* alias, const BulbId& bu
   config[F("name")] = alias;
   config[F("command_topic")] = mqttClient->bindTopicString(settings.mqttTopicPattern, bulbId);
   config[F("state_topic")] = mqttClient->bindTopicString(settings.mqttStateTopicPattern, bulbId);
+  JsonObject deviceMetadata = config.createNestedObject(F("device"));
+
+  deviceMetadata[F("manufacturer")] = F("esp8266_milight_hub");
+  deviceMetadata[F("sw_version")] = QUOTE(MILIGHT_HUB_VERSION);
+
+  JsonArray identifiers = deviceMetadata.createNestedArray(F("identifiers"));
+  identifiers.add(ESP.getChipId());
+  bulbId.serialize(identifiers);
 
   // HomeAssistant only supports simple client availability
   if (settings.mqttClientStatusTopic.length() > 0 && settings.simpleMqttClientStatus) {
@@ -56,6 +64,29 @@ void HomeAssistantDiscoveryClient::addConfig(const char* alias, const BulbId& bu
 
   JsonArray effects = config.createNestedArray(F("effect_list"));
   effects.add(MiLightCommandNames::NIGHT_MODE);
+
+  // These bulbs support switching between rgb/white, and have a "white_mode" command
+  switch (bulbId.deviceType) {
+    case REMOTE_TYPE_FUT089:
+    case REMOTE_TYPE_RGB_CCT:
+    case REMOTE_TYPE_RGBW:
+      effects.add("white_mode");
+      break;
+    default:
+      break; //nothing
+  }
+
+  // All bulbs except CCT have 9 modes.  FUT029 and RGB/FUT096 has 9 modes, but they
+  // are not selectable directly.  There are only "next mode" commands.
+  switch (bulbId.deviceType) {
+    case REMOTE_TYPE_CCT:
+    case REMOTE_TYPE_RGB:
+    case REMOTE_TYPE_FUT020:
+      break;
+    default:
+      addNumberedEffects(effects, 0, 8);
+      break;
+  }
 
   // These bulbs support RGB color
   switch (bulbId.deviceType) {
@@ -76,17 +107,6 @@ void HomeAssistantDiscoveryClient::addConfig(const char* alias, const BulbId& bu
     case REMOTE_TYPE_FUT091:
     case REMOTE_TYPE_RGB_CCT:
       config[GroupStateFieldNames::COLOR_TEMP] = true;
-      break;
-    default:
-      break; //nothing
-  }
-
-  // These bulbs support switching between rgb/white, and have a "white_mode" command
-  switch (bulbId.deviceType) {
-    case REMOTE_TYPE_FUT089:
-    case REMOTE_TYPE_RGB_CCT:
-    case REMOTE_TYPE_RGBW:
-      effects.add("white_mode");
       break;
     default:
       break; //nothing
@@ -144,4 +164,10 @@ String HomeAssistantDiscoveryClient::bindTopicVariables(const String& topic, con
   boundTopic.replace(":group_id", String(bulbId.groupId));
 
   return boundTopic;
+}
+
+void HomeAssistantDiscoveryClient::addNumberedEffects(JsonArray& effectList, uint8_t start, uint8_t end) {
+  for (uint8_t i = start; i <= end; ++i) {
+    effectList.add(String(i));
+  }
 }
