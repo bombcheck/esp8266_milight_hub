@@ -8,11 +8,17 @@
 #define MQTT_CONNECTION_ATTEMPT_FREQUENCY 5000
 #endif
 
+#ifndef MQTT_PACKET_CHUNK_SIZE
+#define MQTT_PACKET_CHUNK_SIZE 128
+#endif
+
 #ifndef _MQTT_CLIENT_H
 #define _MQTT_CLIENT_H
 
 class MqttClient {
 public:
+  using OnConnectFn = std::function<void()>;
+
   MqttClient(Settings& settings, MiLightClient*& milightClient);
   ~MqttClient();
 
@@ -21,15 +27,22 @@ public:
   void reconnect();
   void sendUpdate(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update);
   void sendState(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update);
+  void send(const char* topic, const char* message, const bool retain = false);
+  void onConnect(OnConnectFn fn);
+
+  String bindTopicString(const String& topicPattern, const BulbId& bulbId);
 
 private:
   WiFiClient tcpClient;
-  PubSubClient* mqttClient;
+  PubSubClient mqttClient;
   MiLightClient*& milightClient;
   Settings& settings;
   char* domain;
   unsigned long lastConnectAttempt;
+  OnConnectFn onConnectFn;
+  bool connected;
 
+  void sendBirthMessage();
   bool connect();
   void subscribe();
   void publishCallback(char* topic, byte* payload, int length);
@@ -42,12 +55,7 @@ private:
     const bool retain = false
   );
 
-  inline static void bindTopicString(
-    String& topicPattern,
-    const MiLightRemoteConfig& remoteConfig,
-    const uint16_t deviceId,
-    const uint16_t groupId
-  );
+  String generateConnectionStatusMessage(const char* status);
 };
 
 #endif

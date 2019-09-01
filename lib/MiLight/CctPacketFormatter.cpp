@@ -1,4 +1,5 @@
 #include <CctPacketFormatter.h>
+#include <MiLightCommands.h>
 
 static const uint8_t CCT_PROTOCOL_ID = 0x5A;
 
@@ -184,11 +185,12 @@ MiLightStatus CctPacketFormatter::cctCommandToStatus(uint8_t command) {
     case CCT_GROUP_3_OFF:
     case CCT_GROUP_4_OFF:
     case CCT_ALL_OFF:
+    default:
       return OFF;
   }
 }
 
-BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject& result) {
+BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject result) {
   uint8_t command = packet[CCT_COMMAND_INDEX] & 0x7F;
 
   uint8_t onOffGroupId = cctCommandIdToGroup(command);
@@ -198,16 +200,19 @@ BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject& result
     REMOTE_TYPE_CCT
   );
 
-  if (onOffGroupId < 255) {
-    result["state"] = cctCommandToStatus(command) == ON ? "ON" : "OFF";
+  // Night mode
+  if (command & 0x10) {
+    result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::NIGHT_MODE;
+  } else if (onOffGroupId < 255) {
+    result[GroupStateFieldNames::STATE] = cctCommandToStatus(command) == ON ? "ON" : "OFF";
   } else if (command == CCT_BRIGHTNESS_DOWN) {
-    result["command"] = "brightness_down";
+    result[GroupStateFieldNames::COMMAND] = "brightness_down";
   } else if (command == CCT_BRIGHTNESS_UP) {
-    result["command"] = "brightness_up";
+    result[GroupStateFieldNames::COMMAND] = "brightness_up";
   } else if (command == CCT_TEMPERATURE_DOWN) {
-    result["command"] = "temperature_down";
+    result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::TEMPERATURE_DOWN;
   } else if (command == CCT_TEMPERATURE_UP) {
-    result["command"] = "temperature_up";
+    result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::TEMPERATURE_UP;
   } else {
     result["button_id"] = command;
   }

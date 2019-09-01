@@ -11,9 +11,9 @@ public:
 
   /*
    * Returns the state for the given BulbId.  If accessing state for a valid device
-   * (i.e., NOT group 0) and no state exists, its state will be initialized with a 
+   * (i.e., NOT group 0) and no state exists, its state will be initialized with a
    * default.
-   * 
+   *
    * Otherwise, we return NULL.
    */
   GroupState* get(const BulbId& id);
@@ -25,6 +25,8 @@ public:
    */
   GroupState* set(const BulbId& id, const GroupState& state);
   GroupState* set(const uint16_t deviceId, const uint8_t groupId, const MiLightRemoteType deviceType, const GroupState& state);
+
+  void clear(const BulbId& id);
 
   /*
    * Flushes all states to persistent storage.  Returns true iff anything was

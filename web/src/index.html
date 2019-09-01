@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"/>
   <link href="https://gitcdn.github.io/bootstrap-toggle/2.2.2/css/bootstrap-toggle.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.0/css/bootstrap-slider.min.css" rel="stylesheet"/>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.4/css/selectize.bootstrap3.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.6/css/selectize.bootstrap3.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/css/bootstrap-select.min.css" rel="stylesheet"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!--[if lt IE 9]>
@@ -24,7 +24,7 @@
   <script src="https://gitcdn.github.io/bootstrap-toggle/2.2.2/js/bootstrap-toggle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.0/bootstrap-slider.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.4/js/standalone/selectize.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.6/js/standalone/selectize.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/js/bootstrap-select.min.js"></script>
 
   <script src="js/rgb2hsv.js" lang="text/javascript"></script>
@@ -66,6 +66,17 @@
   </nav>
 
   <div class="container" id="content">
+    <div class="row" id="device-id-aliases-row">
+      <div class="col-sm-3">
+        <label for="deviceAliases" id="device-id-aliases">
+          Device Name
+        </label>
+        <select id="deviceAliases" placeholder="Create alias...">
+				</select>
+      </div>
+    </div>
+    <div></div>
+
     <div class="row">
       <div class="col-sm-3">
         <label for="deviceId" id="device-id-label">
@@ -114,27 +125,6 @@
 
       <div class="col-sm-4">
         <label for="mode">Remote Type</label>
-
-        <!-- <div class="btn-group" id="mode" data-toggle="buttons">
-          <label class="btn btn-secondary active">
-            <input type="radio" name="mode" autocomplete="off" data-value="rgbw" checked> RGBW
-          </label>
-          <label class="btn btn-secondary">
-            <input type="radio" name="mode" autocomplete="off" data-value="cct"> CCT
-          </label>
-          <label class="btn btn-secondary">
-            <input type="radio" name="mode" autocomplete="off" data-value="rgb_cct"> RGB+CCT
-          </label>
-          <label class="btn btn-secondary">
-            <input type="radio" name="mode" autocomplete="off" data-value="rgb"> RGB
-          </label>
-          <label class="btn btn-secondary">
-            <input type="radio" name="mode" autocomplete="off" data-value="fut089"> FUT089
-          </label>
-          <label class="btn btn-secondary">
-            <input type="radio" name="mode" autocomplete="off" data-value="fut091"> FUT091
-          </label>
-        </div> -->
         <div class="dropdown">
           <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
             <label>Mode</label>
@@ -159,13 +149,16 @@
             <li data-value="fut091">
               <a href="#">FUT091 / B2</a>
             </li>
+            <li data-value="fut020">
+              <a href="#">FUT020</a>
+            </li>
           </ul>
         </div>
       </div>
     </div>
 
     <div class="row"><div class="col-sm-12">
-    <div class="mode-option" data-for="rgbw,rgb_cct,rgb,fut089">
+    <div class="mode-option" data-for="rgbw,rgb_cct,rgb,fut089,fut020">
       <div class="row">
         <div class="col-sm-12">
           <h5>Hue</h5>
@@ -247,7 +240,7 @@
           <li>
             <input type="checkbox" name="status" class="raw-update" data-toggle="toggle" checked/>
           </li>
-          <div class="mode-option inline" data-for="rgbw,rgb_cct,fut089">
+          <div class="mode-option inline" data-for="rgbw,rgb_cct,fut089,fut020">
             <li>
               <button type="button" class="btn btn-secondary command-btn" data-command="set_white">White</button>
             </li>
@@ -270,7 +263,7 @@
         </ul>
         <p></p>
         <ul class="command-buttons">
-          <div class="mode-option inline" data-for="rgb">
+          <div class="mode-option inline" data-for="rgb,fut020">
             <li>
               <div class="plus-minus-group">
                 <button type="button" class="btn btn-default btn-number command-btn" data-command="previous_mode">
@@ -396,6 +389,17 @@
         <div class="modal-body">
           <div class="alert alert-warning">
             <p>
+              <b>
+                Always take a
+                <a href="/settings" download="settings.json">backup of your settings</a>
+                before upgrading.
+              </b>
+              Sometimes upgrades change flash offsets, which can corrupt the filesystem.  If this happens, clear
+              flash, re-upload the firmware, and restore the backup of your settings.
+            </p>
+          </div>
+          <div class="alert alert-warning">
+            <p>
             Download firmware binaries from the
             <a href="https://github.com/bombcheck/esp8266_milight_hub/releases">GitHub releases page</a>.
             Check for a new version by clicking on the "Check for Updates" button.
@@ -412,15 +416,29 @@
             </p>            
           </div>
           <form action="/firmware" method="post" enctype="multipart/form-data">
-            <input type="file" name="file"/>
-            <p>&nbsp;</p>
-            <input type="submit" name="submit" class="btn btn-success"/>
+            <div class="input-group">
+              <label class="input-group-btn">
+                <span class="btn btn-primary">
+                  Browse
+                  <input type="file" name="file" style="display: none;">
+                </span>
+              </label>
+
+              <input type="text" class="form-control" readonly="">
+
+              <label class="input-group-btn">
+                <span class="btn btn-success">
+                  Upload Firmware
+                  <input type="submit" style="display: none;">
+                </span>
+              </label>
+            </div>
           </form>
-        </div>
+		</div>
         <div class="modal-footer">
           <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
         </div>
-      </div>
+</div>
 
     </div>
   </div>
@@ -478,6 +496,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <button type="button" class="close" data-dismiss="modal">&times;</button>
+          <h2 class="modal-title">Backup & Restore Settings</h2>
         </div>
         <div class="modal-body">
           <div>
@@ -488,12 +507,23 @@
           <div>
             <h3 class="section-title">Restore Settings</h3>
             <form action="/settings" method="post" enctype="multipart/form-data">
-              <p>
-                <input type="file" name="file"/>
-              </p>
-              <p>
-                <input type="submit" name="submit" class="btn btn-success"/>
-              </p>
+              <div class="input-group">
+                <label class="input-group-btn">
+                  <span class="btn btn-primary">
+                    Browse
+                    <input type="file" name="file" style="display: none;">
+                  </span>
+                </label>
+
+                <input type="text" class="form-control" readonly="">
+
+                <label class="input-group-btn">
+                  <span class="btn btn-success">
+                    Upload
+                    <input type="submit" style="display: none;">
+                  </span>
+                </label>
+              </div>
             </form>
           </div>
         </div>

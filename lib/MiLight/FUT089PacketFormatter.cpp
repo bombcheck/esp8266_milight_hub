@@ -1,6 +1,7 @@
 #include <FUT089PacketFormatter.h>
 #include <V2RFEncoding.h>
 #include <Units.h>
+#include <MiLightCommands.h>
 
 void FUT089PacketFormatter::modeSpeedDown() {
   command(FUT089_ON, FUT089_MODE_SPEED_DOWN);
@@ -28,15 +29,15 @@ void FUT089PacketFormatter::updateColorRaw(uint8_t value) {
   command(FUT089_COLOR, FUT089_COLOR_OFFSET + value);
 }
 
-// change the temperature (kelvin).  Note that temperature and saturation share the same command 
+// change the temperature (kelvin).  Note that temperature and saturation share the same command
 // number (7), and they change which they do based on the mode of the lamp (white vs. color mode).
 // To make this command work, we need to switch to white mode, make the change, and then flip
 // back to the original mode.
 void FUT089PacketFormatter::updateTemperature(uint8_t value) {
-  // look up our current mode 
+  // look up our current mode
   const GroupState* ourState = this->stateStore->get(this->deviceId, this->groupId, REMOTE_TYPE_FUT089);
   BulbMode originalBulbMode;
-  
+
   if (ourState != NULL) {
     originalBulbMode = ourState->getBulbMode();
 
@@ -55,15 +56,15 @@ void FUT089PacketFormatter::updateTemperature(uint8_t value) {
   }
 }
 
-// change the saturation.  Note that temperature and saturation share the same command 
+// change the saturation.  Note that temperature and saturation share the same command
 // number (7), and they change which they do based on the mode of the lamp (white vs. color mode).
 // Therefore, if we are not in color mode, we need to switch to color mode, make the change,
 // and switch back to the original mode.
 void FUT089PacketFormatter::updateSaturation(uint8_t value) {
-  // look up our current mode 
+  // look up our current mode
   const GroupState* ourState = this->stateStore->get(this->deviceId, this->groupId, REMOTE_TYPE_FUT089);
-  BulbMode originalBulbMode;
-  
+  BulbMode originalBulbMode = BulbMode::BULB_MODE_WHITE;
+
   if (ourState != NULL) {
     originalBulbMode = ourState->getBulbMode();
   }
@@ -91,7 +92,7 @@ void FUT089PacketFormatter::enableNightMode() {
   command(FUT089_ON | 0x80, arg);
 }
 
-BulbId FUT089PacketFormatter::parsePacket(const uint8_t *packet, JsonObject& result) {
+BulbId FUT089PacketFormatter::parsePacket(const uint8_t *packet, JsonObject result) {
   if (stateStore == NULL) {
     Serial.println(F("ERROR: stateStore not set.  Prepare was not called!  **THIS IS A BUG**"));
     BulbId fakeId(0, 0, REMOTE_TYPE_FUT089);
@@ -113,39 +114,39 @@ BulbId FUT089PacketFormatter::parsePacket(const uint8_t *packet, JsonObject& res
 
   if (command == FUT089_ON) {
     if ((packetCopy[V2_COMMAND_INDEX] & 0x80) == 0x80) {
-      result["command"] = "night_mode";
+      result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::NIGHT_MODE;
     } else if (arg == FUT089_MODE_SPEED_DOWN) {
-      result["command"] = "mode_speed_down";
+      result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::MODE_SPEED_DOWN;
     } else if (arg == FUT089_MODE_SPEED_UP) {
-      result["command"] = "mode_speed_up";
+      result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::MODE_SPEED_UP;
     } else if (arg == FUT089_WHITE_MODE) {
-      result["command"] = "set_white";
+      result[GroupStateFieldNames::COMMAND] = MiLightCommandNames::SET_WHITE;
     } else if (arg <= 8) { // Group is not reliably encoded in group byte. Extract from arg byte
-      result["state"] = "ON";
+      result[GroupStateFieldNames::STATE] = "ON";
       bulbId.groupId = arg;
     } else if (arg >= 9 && arg <= 17) {
-      result["state"] = "OFF";
+      result[GroupStateFieldNames::STATE] = "OFF";
       bulbId.groupId = arg-9;
     }
   } else if (command == FUT089_COLOR) {
     uint8_t rescaledColor = (arg - FUT089_COLOR_OFFSET) % 0x100;
     uint16_t hue = Units::rescale<uint16_t, uint16_t>(rescaledColor, 360, 255.0);
-    result["hue"] = hue;
+    result[GroupStateFieldNames::HUE] = hue;
   } else if (command == FUT089_BRIGHTNESS) {
     uint8_t level = constrain(arg, 0, 100);
-    result["brightness"] = Units::rescale<uint8_t, uint8_t>(level, 255, 100);
+    result[GroupStateFieldNames::BRIGHTNESS] = Units::rescale<uint8_t, uint8_t>(level, 255, 100);
   // saturation == kelvin. arg ranges are the same, so can't distinguish
   // without using state
   } else if (command == FUT089_SATURATION) {
     const GroupState* state = stateStore->get(bulbId);
 
     if (state != NULL && state->getBulbMode() == BULB_MODE_COLOR) {
-      result["saturation"] = 100 - constrain(arg, 0, 100);
+      result[GroupStateFieldNames::SATURATION] = 100 - constrain(arg, 0, 100);
     } else {
-      result["color_temp"] = Units::whiteValToMireds(100 - arg, 100);
+      result[GroupStateFieldNames::COLOR_TEMP] = Units::whiteValToMireds(100 - arg, 100);
     }
   } else if (command == FUT089_MODE) {
-    result["mode"] = arg;
+    result[GroupStateFieldNames::MODE] = arg;
   } else {
     result["button_id"] = command;
     result["argument"] = arg;

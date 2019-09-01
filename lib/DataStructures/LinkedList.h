@@ -28,7 +28,7 @@ template <typename T>
 class LinkedList {
 
 protected:
-  int _size;
+  size_t _size;
   ListNode<T> *root;
   ListNode<T>  *last;
 
@@ -39,7 +39,7 @@ public:
   /*
     Returns current size of LinkedList
   */
-  virtual int size() const;
+  virtual size_t size() const;
   /*
     Adds a T object in the specified index;
     Unlink and link the LinkedList correcly;
@@ -67,6 +67,7 @@ public:
     else, decrement _size
   */
   virtual T remove(int index);
+  virtual void remove(ListNode<T>* node);
   /*
     Remove last object;
   */
@@ -159,7 +160,7 @@ ListNode<T>* LinkedList<T>::getNode(int index){
 }
 
 template<typename T>
-int LinkedList<T>::size() const{
+size_t LinkedList<T>::size() const{
   return _size;
 }
 
@@ -193,6 +194,7 @@ bool LinkedList<T>::add(T _t){
   if(root){
     // Already have elements inserted
     last->next = tmp;
+    tmp->prev = last;
     last = tmp;
   }else{
     // First element being inserted
@@ -274,6 +276,24 @@ T LinkedList<T>::shift(){
     return pop();
   }
 
+}
+
+template<typename T>
+void LinkedList<T>::remove(ListNode<T>* node){
+  if (node == root) {
+    shift();
+  } else if (node == last) {
+    pop();
+  } else {
+    ListNode<T>* prev = node->prev;
+    ListNode<T>* next = node->next;
+
+    prev->next = next;
+    next->prev = prev;
+
+    delete node;
+    --_size;
+  }
 }
 
 template<typename T>

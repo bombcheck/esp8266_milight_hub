@@ -1,3 +1,23 @@
+$(function() {
+  $(document).on('change', ':file', function() {
+    var input = $(this),
+        label = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+    input.trigger('fileselect', [label]);
+  });
+
+  $(document).ready( function() {
+    $(':file').on('fileselect', function(event, label) {
+
+        var input = $(this).parents('.input-group').find(':text'),
+            log = label;
+
+        if( input.length ) {
+            input.val(log);
+        }
+    });
+  });
+});
+
 var UNIT_PARAMS = {
   minMireds: 153,
   maxMireds: 370,
@@ -35,6 +55,41 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-wifi"
   }, {
+    tag: "hostname",
+    friendly: "Hostname",
+    help: "Self-reported hostname to send along with DCHP request",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_static_ip",
+    friendly: "Static IP Address",
+    help: "Static IP address (leave blank to use DHCP)",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_static_ip_netmask",
+    friendly: "Static IP Netmask",
+    help: "Netmask to use with Static IP",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_static_ip_gateway",
+    friendly: "Static IP Gateway Address",
+    help: "IP address to use as gateway when a Static IP is speicifed",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_mode",
+    friendly: "WiFi Mode",
+    help: "Try using G mode if you're having stability problems",
+    type: "option_buttons",
+    options: {
+      'b': 'B',
+      'g': 'G',
+      'n': 'N'
+    },
+    tab: "tab-wifi"
+  }, {
     tag: "ce_pin",
     friendly: "CE / PKT pin",
     help: "Pin on ESP8266 used for 'CE' (for NRF24L01 interface) or 'PKT' (for 'PL1167/LT8900' interface)",
@@ -65,6 +120,12 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-radio"
   }, {
+    tag: "packet_repeats_per_loop",
+    friendly: "Packet repeats per loop",
+    help: "Number of repeats to send in a single go.  Higher values mean more throughput, but less multitasking.",
+    type: "string",
+    tab: "tab-radio"
+  }, {
     tag: "http_repeat_factor",
     friendly: "HTTP repeat factor",
     help: "Multiplicative factor on packet_repeats for requests initiated by the HTTP API. UDP API typically receives " +
@@ -90,13 +151,13 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag: "mqtt_topic_pattern", 
+    tag: "mqtt_topic_pattern",
     friendly: "MQTT topic pattern",
     help: "Pattern for MQTT topics to listen on. Example: lights/:device_id/:device_type/:group_id. See README for further details",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_update_topic_pattern", 
+    tag:   "mqtt_update_topic_pattern",
     friendly: "MQTT update topic pattern",
     help: "Pattern to publish MQTT updates. Packets that are received from other devices, and packets that are sent from this device will " +
     "result in updates being sent",
@@ -109,22 +170,85 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_username", 
+    tag:   "mqtt_username",
     friendly: "MQTT user name",
     help: "User name to log in to MQTT server",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "mqtt_password", 
+    tag:   "mqtt_password",
     friendly: "MQTT password",
     help: "Password to log into MQTT server",
     type: "string",
     tab: "tab-mqtt"
   }, {
-    tag:   "radio_interface_type", 
+    tag:   "mqtt_client_status_topic",
+    friendly: "MQTT Client Status Topic",
+    help: "Connection status messages will be published to this topic.  This includes LWT and birth.  See README for further detail.",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
+    tag:   "simple_mqtt_client_status",
+    friendly: "Client Status Messages Mode",
+    help: "In simple mode, only the strings 'connected' and 'disconnected' will be published.  In detailed mode, data about the version, IP address, etc. will be included.",
+    type: "option_buttons",
+    options: {
+      true: "Simple",
+      false: "Detailed"
+    },
+    tab: "tab-mqtt"
+  }, {
+    tag: "home_assistant_discovery_prefix",
+    friendly: "HomeAssistant MQTT Discovery Prefix",
+    help: "If set, will enable integration with HomeAssistant's MQTT discovery functionality to allow saved aliases to be detected automatically",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
+    tag:   "radio_interface_type",
     friendly: "Radio interface type",
     help: "2.4 GHz radio model. Only change this if you know you're not using an NRF24L01!",
-    type: "radio_interface_type",
+    type: "option_buttons",
+    options: {
+      'nRF24': 'nRF24',
+      'LT8900': 'PL1167/LT8900'
+    },
+    tab: "tab-radio"
+  }, {
+    tag:   "rf24_power_level",
+    friendly: "nRF24 Power Level",
+    help: "Power level for nRF24L01",
+    type: "option_buttons",
+    options: {
+      'MIN': 'Min',
+      'LOW': 'Low',
+      'HIGH': 'High',
+      'MAX': 'Max'
+    },
+    tab: "tab-radio"
+  }, {
+    tag:   "rf24_listen_channel",
+    friendly: "nRF24 Listen Channel",
+    help: "Which channels to listen for messages on the nRF24",
+    type: "option_buttons",
+    options: {
+      'LOW': 'Min',
+      'MID': 'Mid',
+      'HIGH': 'High'
+    },
+    tab: "tab-radio"
+  }, {
+    tag:   "rf24_channels",
+    friendly: "nRF24 Send Channels",
+    help: "Which channels to send messages on for the nRF24.  Using fewer channels speeds up sends.",
+    type: "option_buttons",
+    settings: {
+      multiple: true,
+    },
+    options: {
+      'LOW': 'Min',
+      'MID': 'Mid',
+      'HIGH': 'High'
+    },
     tab: "tab-radio"
   }, {
     tag:   "listen_repeats",
@@ -134,14 +258,14 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-wifi"
   }, {
-    tag:   "state_flush_interval", 
+    tag:   "state_flush_interval",
     friendly: "State flush interval",
     help: "Minimum number of milliseconds between flushing state to flash. " +
     "Set to 0 to disable delay and immediately persist state to flash",
     type: "string",
     tab: "tab-setup"
   }, {
-    tag:   "mqtt_state_rate_limit", 
+    tag:   "mqtt_state_rate_limit",
     friendly: "MQTT state rate limit",
     help: "Minimum number of milliseconds between MQTT updates of bulb state (defaults to 500)",
     type: "string",
@@ -156,7 +280,7 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-radio"
   }, {
-    tag:   "packet_repeat_throttle_sensitivity", 
+    tag:   "packet_repeat_throttle_sensitivity",
     friendly: "Packet repeat throttle sensitivity",
     help: "Controls how packet repeats are throttled. " +
     "Higher values cause packets to be throttled up and down faster " +
@@ -164,7 +288,7 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-radio"
   }, {
-    tag:   "packet_repeat_minimum", 
+    tag:   "packet_repeat_minimum",
     friendly: "Packet repeat minimum",
     help: "Controls how far throttling can decrease the number " +
     "of repeated packets (defaults to 3)",
@@ -177,11 +301,16 @@ var UI_FIELDS = [ {
     type: "group_state_fields",
     tab: "tab-mqtt"
   }, {
-    tag:   "enable_automatic_mode_switching", 
-    friendly: "Enable automatic mode switching",
-    help: "For RGBWW bulbs (using RGB+CCT or FUT089), enables automatic switching between modes in order to affect changes to " +
-    "temperature and saturation when otherwise it would not work",
-    type: "enable_automatic_mode_switching",
+    tag:   "enable_automatic_mode_switching",
+    friendly: "Switch to previous mode after saturation/color commands",
+    help: "For RGBWW bulbs (using RGB+CCT or FUT089), commands that adjust color saturation or white temperature "
+      + "will switch into the appropriate mode, make the change, and switch back to previous mode.  WARNING: this "
+      + "feature is not compatible with 'color' commands.",
+    type: "option_buttons",
+    options: {
+      true: 'Enable',
+      false: 'Disable'
+    },
     tab: "tab-radio"
   }, {
     tag:   "led_mode_wifi_config",
@@ -212,7 +341,7 @@ var UI_FIELDS = [ {
     friendly: "Flash count on packets",
     help: "Number of times the LED will flash when packets are changing",
     type: "string",
-    tab: "tab-led"    
+    tab: "tab-led"
   }
 ];
 
@@ -233,7 +362,9 @@ var GROUP_STATE_KEYS = [
   "effect",
   "device_id",
   "group_id",
-  "device_type"
+  "device_type",
+  "oh_color",
+  "hex_color"
 ];
 
 var LED_MODES = [
@@ -250,7 +381,15 @@ var UDP_PROTOCOL_VERSIONS = [ 5, 6 ];
 var DEFAULT_UDP_PROTOCL_VERSION = 5;
 
 var selectize;
+var aliasesSelectize;
 var sniffing = false;
+var loadingSettings = false;
+
+// When true, will not attempt to load group parameters
+var updatingGroupId = false;
+
+// When true, will not attempt to update group parameters
+var updatingAlias = false;
 
 // don't attempt websocket if we are debugging locally
 if (location.hostname != "") {
@@ -267,9 +406,60 @@ var toHex = function(v) {
   return "0x" + (v).toString(16).toUpperCase();
 }
 
+var updateGroupId = function(params) {
+  updatingGroupId = true;
+
+  selectize.setValue(params.deviceId);
+  setGroupId(params.groupId);
+  setMode(params.deviceType);
+
+  updatingGroupId = false;
+
+  refreshGroupState();
+}
+
+var setGroupId = function(value) {
+  $('#groupId input[data-value="' + value + '"]').click();
+}
+
+var setMode = function(value) {
+  $('#mode li[data-value="' + value + '"]').click();
+}
+
+var getCurrentDeviceId = function() {
+  // return $('#deviceId option:selected').val();
+  return parseInt(selectize.getValue());
+};
+
+var getCurrentGroupId = function() {
+  return $('#groupId .active input').data('value');
+}
+
+var findAndSelectAlias = function() {
+  if (!updatingGroupId) {
+    var params = {
+      deviceType: getCurrentMode(),
+      deviceId: getCurrentDeviceId(),
+      groupId: getCurrentGroupId()
+    };
+
+    var foundAlias = Object.entries(aliasesSelectize.options).filter(function(x) {
+      return _.isEqual(x[1].savedGroupParams, params);
+    });
+
+    updatingAlias = true;
+    if (foundAlias.length > 0) {
+      aliasesSelectize.setValue(foundAlias[0]);
+    } else {
+      aliasesSelectize.clear();
+    }
+    updatingAlias = false;
+  }
+}
+
 var activeUrl = function() {
-  var deviceId = $('#deviceId option:selected').val()
-    , groupId = $('#groupId .active input').data('value')
+  var deviceId = getCurrentDeviceId()
+    , groupId = getCurrentGroupId()
     , mode = getCurrentMode();
 
   if (deviceId == "") {
@@ -287,6 +477,17 @@ var activeUrl = function() {
   return "/gateways/" + deviceId + "/" + mode + "/" + groupId;
 }
 
+var refreshGroupState = function() {
+  if (! updatingGroupId) {
+    $.getJSON(
+      activeUrl(),
+      function(e) {
+        handleStateUpdate(e);
+      }
+    );
+  }
+}
+
 var getCurrentMode = function() {
   return $('#mode li.active').data('value');
 };
@@ -295,7 +496,7 @@ var updateGroup = _.throttle(
   function(params) {
     try {
       $.ajax({
-        url: activeUrl(),
+        url: activeUrl() + "?blockOnQueue=true",
         method: 'PUT',
         data: JSON.stringify(params),
         contentType: 'application/json',
@@ -362,24 +563,63 @@ var loadSettings = function() {
     return;
   }
   $.getJSON('/settings', function(val) {
+    loadingSettings = true;
+
     Object.keys(val).forEach(function(k) {
       var field = $('#settings input[name="' + k + '"]');
+      var selectVal = function(selectVal) {
+        field.filter('[value="' + selectVal + '"]').click();
+      };
 
       if (field.length > 0) {
-        if (field.attr('type') === 'radio') {
-          field.filter('[value="' + val[k] + '"]').click();
+        if (field.attr('type') === 'radio' || field.attr('type') === 'checkbox') {
+          if (Array.isArray(val[k])) {
+            val[k].forEach(function(x) {
+              selectVal(x);
+            });
+          } else {
+            selectVal(val[k]);
+          }
         } else {
           field.val(val[k]);
         }
       }
     });
 
+    if (val.hostname) {
+      var title = "FB.MiLight-Hub [" + val.hostname + "]";
+      document.title = title;
+      $('.navbar-brand').html(title);
+    }
+
+    if (val.group_id_aliases) {
+      aliasesSelectize.clearOptions();
+      Object.entries(val.group_id_aliases).forEach(function(entry) {
+        var label = entry[0]
+          , groupParams = entry[1]
+          , savedParams = {
+                deviceType: groupParams[0],
+                deviceId: groupParams[1],
+                groupId: groupParams[2]
+            }
+          ;
+
+        aliasesSelectize.addOption({
+          text: label,
+          value: label,
+          savedGroupParams: savedParams
+        });
+
+        aliasesSelectize.refreshOptions(false);
+      });
+    }
+
     if (val.device_ids) {
       selectize.clearOptions();
       val.device_ids.forEach(function(v) {
         selectize.addOption({text: toHex(v), value: v});
       });
-      selectize.refreshOptions();
+      selectize.refreshOptions(false);
     }
 
     if (val.group_state_fields) {
@@ -413,6 +653,8 @@ var loadSettings = function() {
         gatewayForm.append(gatewayServerRow(toHex(v[0]), v[1], v[2]));
       });
     }
+
+    loadingSettings = false;
   });
 };
 
@@ -464,6 +706,65 @@ var saveGatewayConfigs = function() {
       }
     )
   }
+};
+
+var patchSettings = function(patch) {
+  if (!loadingSettings) {
+    $.ajax(
+      "/settings",
+      {
+        method: 'put',
+        contentType: 'application/json',
+        data: JSON.stringify(patch)
+      }
+    );
+  }
+};
+
+var saveDeviceIds = function() {
+  if (!loadingSettings) {
+    var deviceIds = _.map(
+      $('#deviceId')[0].selectize.options,
+      function(option) {
+        return option.value;
+      }
+    );
+
+    patchSettings({device_ids: deviceIds});
+  }
+};
+
+var saveDeviceAliases = function() {
+  if (!loadingSettings) {
+    var deviceAliases = Object.entries(aliasesSelectize.options).reduce(
+      function(aggregate, x) {
+        var params = x[1].savedGroupParams;
+
+        aggregate[x[0]] = [
+          params.deviceType,
+          params.deviceId,
+          params.groupId
+        ]
+
+        return aggregate;
+      },
+      {}
+    );
+
+    patchSettings({group_id_aliases: deviceAliases});
+  }
+};
+
+var deleteDeviceId = function() {
+  selectize.removeOption($(this).data('value'));
+  selectize.refreshOptions();
+  saveDeviceIds();
+};
+
+var deleteDeviceAlias = function() {
+  aliasesSelectize.removeOption($(this).data('value'));
+  aliasesSelectize.refreshOptions();
+  saveDeviceAliases();
 };
 
 var deviceIdError = function(v) {
@@ -649,6 +950,22 @@ var startSniffing = function() {
   $("#traffic-sniff").show();
 };
 
+var generateDropdownField = function(fieldName, options, settings) {
+  var s = '<div class="btn-group" id="' + fieldName + '" data-toggle="buttons">';
+  var inputType = settings.multiple ? 'checkbox' : 'radio';
+
+  Object.keys(options).forEach(function(optionValue) {
+    var optionLabel = options[optionValue];
+    s += '<label class="btn btn-secondary">' +
+           '<input type="' + inputType + '" id="' + fieldName + '" name="' + fieldName + '" autocomplete="off" value="' + optionValue + '" /> ' + optionLabel +
+         '</label>';
+  });
+
+  s += '</div>';
+
+  return s;
+};
+
 $(function() {
   $('.radio-option').click(function() {
     $(this).prev().prop('checked', true);
@@ -687,7 +1004,7 @@ $(function() {
 
   $('.raw-update').change(function() {
     var data = {}
-      , val = $(this).attr('type') == 'checkbox' ? $(this).is(':checked') : $(this).val()
+      , val = $(this).attr('type') == 'checkbox' ? ($(this).is(':checked') ? 'on' : 'off') : $(this).val()
       ;
 
     data[$(this).attr('name')] = val;
@@ -719,7 +1036,6 @@ $(function() {
 
   $('body').on('click', '#add-server-btn', function(e) {
     e.preventDefault();
-    console.log('hi');
     $('#gateway-server-configs').append(gatewayServerRow('', ''));
   });
 
@@ -746,24 +1062,92 @@ $(function() {
     return false;
   });
 
-  $('input[name="mode"],input[name="options"],#deviceId').change(function(e) {
+  var onGroupParamsChange = function(e) {
+    findAndSelectAlias();
     try {
-      $.getJSON(
-        activeUrl(),
-        function(e) {
-          handleStateUpdate(e);
-        }
-      );
+      refreshGroupState();
     } catch (e) {
       // Skip
     }
-  });
+  };
+
+  $('input[name="options"],#deviceId').change(onGroupParamsChange);
+  $('#mode li').click(onGroupParamsChange);
+
+  aliasesSelectize = $('#deviceAliases').selectize({
+    create: true,
+    allowEmptyOption: true,
+    openOnFocus: true,
+    createOnBlur: true,
+    render: {
+      option: function(data, escape) {
+        // Mousedown selects an option -- prevent event from bubbling up to select option
+        // when delete button is clicked.
+        var deleteBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-trash"></i></a></span>')
+          .mousedown(function(e) {
+            e.preventDefault();
+            return false;
+          })
+          .click(function(e) {
+            deleteDeviceAlias.call($(this).closest('.c-selectize-item'));
+            e.preventDefault();
+            return false;
+          });
+
+        var elmt = $('<div class="c-selectize-item"></div>');
+        elmt.append('<span>' + data.text + '</span>');
+        elmt.append(deleteBtn);
+
+        return elmt;
+      }
+    },
+    onOptionAdd: function(v, item) {
+      if (!item.savedGroupParams) {
+        item.savedGroupParams = {
+          deviceId: getCurrentDeviceId(),
+          groupId: getCurrentGroupId(),
+          deviceType: getCurrentMode()
+        };
+      }
+
+      saveDeviceAliases();
+    }
+  })[0].selectize;
 
   selectize = $('#deviceId').selectize({
     create: true,
-    sortField: 'text',
+    sortField: 'value',
+    allowEmptyOption: true,
+    createOnBlur: true,
+    render: {
+      option: function(data, escape) {
+        // Mousedown selects an option -- prevent event from bubbling up to select option
+        // when delete button is clicked.
+        var deleteBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-trash"></i></a></span>')
+          .mousedown(function(e) {
+            e.preventDefault();
+            return false;
+          })
+          .click(function(e) {
+            deleteDeviceId.call($(this).closest('.c-selectize-item'));
+            e.preventDefault();
+            return false;
+          });
+
+        var elmt = $('<div class="c-selectize-item"></div>');
+        elmt.append('<span>' + data.text + '</span>');
+        elmt.append(deleteBtn);
+
+        return elmt;
+      }
+    },
     onOptionAdd: function(v, item) {
-      item.value = parseInt(item.value);
+      var unparsedValue = item.value;
+      item.value = parseInt(unparsedValue);
+      selectize.updateOption(unparsedValue, item);
+      selectize.addItem(item.value);
+
+      saveDeviceIds();
     },
     createFilter: function(v) {
       if (! v.match(/^(0x[a-fA-F0-9]{1,4}|[0-9]{1,5})$/)) {
@@ -813,16 +1197,7 @@ $(function() {
 
         elmt += '</div>';
 
-        if (k.type === "radio_interface_type") {
-          elmt += '<div class="btn-group" id="radio_interface_type" data-toggle="buttons">' +
-            '<label class="btn btn-secondary active">' +
-              '<input type="radio" id="nrf24" name="radio_interface_type" autocomplete="off" value="nRF24" /> nRF24' +
-            '</label>'+
-            '<label class="btn btn-secondary">' +
-              '<input type="radio" id="lt8900" name="radio_interface_type" autocomplete="off" value="LT8900" /> PL1167/LT8900' +
-            '</label>' +
-          '</div>';
-        } else if (k.type == 'group_state_fields') {
+        if (k.type == 'group_state_fields') {
           elmt += '<select class="selectpicker select-init" name="group_state_fields" multiple>';
           GROUP_STATE_KEYS.forEach(function(stateKey) {
             elmt += '<option>' + stateKey + '</option>';
@@ -834,15 +1209,8 @@ $(function() {
             elmt += '<option>' + stateKey + '</option>';
           });
           elmt += '</select>';
-        } else if (k.type == 'enable_automatic_mode_switching') {
-          elmt += '<div class="btn-group" id="enable_automatic_mode_switching" data-toggle="buttons">' +
-            '<label class="btn btn-secondary active">' +
-              '<input type="radio" id="enable_mode_switching" name="enable_automatic_mode_switching" autocomplete="off" value="true" /> Enable' +
-            '</label>'+
-            '<label class="btn btn-secondary">' +
-              '<input type="radio" id="disable_mode_switching" name="enable_automatic_mode_switching" autocomplete="off" value="false" /> Disable' +
-            '</label>' +
-          '</div>';
+        } else if (k.type == 'option_buttons') {
+          elmt += generateDropdownField(k.tag, k.options, k.settings || {});
         } else {
           elmt += '<input type="text" class="form-control" name="' + k.tag + '"/>';
         }
@@ -853,7 +1221,7 @@ $(function() {
     });
     settings += "</div>";
   });
-  
+
   // UDP gateways tab
   settings += '<div class="tab-pane fade ' + tabClass + '" id="tab-udp-gateways">';
   settings += $('#gateway-servers-modal .modal-body').remove().html();
@@ -870,8 +1238,9 @@ $(function() {
     if ($('#tab-udp-gateways').hasClass('active')) {
       saveGatewayConfigs();
     } else {
-      var obj = $('#settings')
-        .serializeArray()
+      var obj = $('#settings').serializeArray();
+
+      obj = obj
         .reduce(function(a, x) {
           var val = a[x.name];
 
@@ -884,15 +1253,11 @@ $(function() {
           }
 
           return a;
-        }, {});
-
-      // pretty hacky. whatever.
-      obj.device_ids = _.map(
-        $('.selectize-control .option'),
-        function(x) {
-          return $(x).data('value')
-        }
-      );
+        },
+        {
+          // Make sure the value is always an array, even if a single item is selected
+          rf24_channels: []
+        });
 
       // Make sure we're submitting a value for group_state_fields (will be empty
       // if no values were selected).
@@ -909,7 +1274,7 @@ $(function() {
     }
 
     $('#settings-modal').modal('hide');
-    
+
     return false;
   });
 
@@ -935,4 +1300,34 @@ $(function() {
 
   loadSettings();
   updateModeOptions();
+});
+
+$(function() {
+  $(document).on('change', ':file', function() {
+    var input = $(this),
+        label = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+    input.trigger('fileselect', [label]);
+  });
+
+  $(document).on('change', '#deviceAliases', function() {
+    var selectedValue = aliasesSelectize.getValue()
+      , selectizeItem = aliasesSelectize.options[selectedValue]
+      ;
+
+    if (selectizeItem && !updatingAlias) {
+      updateGroupId(selectizeItem.savedGroupParams);
+    }
+  });
+
+  $(document).ready( function() {
+    $(':file').on('fileselect', function(event, label) {
+
+        var input = $(this).parents('.input-group').find(':text'),
+            log = label;
+
+        if( input.length ) {
+            input.val(log);
+        }
+    });
+  });
 });
