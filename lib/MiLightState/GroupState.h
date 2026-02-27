@@ -7,6 +7,7 @@
 #include <ArduinoJson.h>
 #include <BulbId.h>
 #include <ParsedColor.h>
+#include <vector>
 
 #ifndef _GROUP_STATE_H
 #define _GROUP_STATE_H
@@ -124,7 +125,7 @@ public:
   // state in this class.  The alternative is to have every GroupState object
   // keep a reference to its BulbId, which feels too heavy-weight.
   void applyField(JsonObject state, const BulbId& bulbId, GroupStateField field) const;
-  void applyState(JsonObject state, const BulbId& bulbId, std::vector<GroupStateField>& fields) const;
+  void applyState(JsonObject state, const BulbId& bulbId, const std::vector<GroupStateField>& fields) const;
 
   // Attempt to keep track of increment commands in such a way that we can
   // know what state it's in.  When we get an increment command (like "increase

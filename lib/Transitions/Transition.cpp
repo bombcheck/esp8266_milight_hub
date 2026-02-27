@@ -2,13 +2,22 @@
 #include <Arduino.h>
 #include <cmath>
 
-Transition::Builder::Builder(size_t id, const BulbId& bulbId, TransitionFn callback)
+// transition commands are in seconds, convert to ms.
+const uint16_t Transition::DURATION_UNIT_MULTIPLIER = 1000;
+
+// If period goes lower than this, throttle other parameters up to adjust.
+const size_t Transition::MIN_PERIOD = 150;
+const size_t Transition::DEFAULT_DURATION = 10000;
+
+Transition::Builder::Builder(size_t id, uint16_t defaultPeriod, const BulbId& bulbId, TransitionFn callback, size_t maxSteps)
   : id(id)
+  , defaultPeriod(defaultPeriod)
   , bulbId(bulbId)
   , callback(callback)
   , duration(0)
   , period(0)
   , numPeriods(0)
+  , maxSteps(maxSteps)
 { }
 
 Transition::Builder& Transition::Builder::setDuration(float duration) {
@@ -25,8 +34,12 @@ Transition::Builder& Transition::Builder::setPeriod(size_t period) {
   return *this;
 }
 
-Transition::Builder& Transition::Builder::setNumPeriods(size_t numPeriods) {
-  this->numPeriods = numPeriods;
+Transition::Builder& Transition::Builder::setDurationAwarePeriod(size_t period, size_t duration, size_t maxSteps) {
+  if ((period * maxSteps) < duration) {
+    setPeriod(std::ceil(duration / static_cast<float>(maxSteps)));
+  } else {
+    setPeriod(period);
+  }
   return *this;
 }
 
@@ -40,6 +53,10 @@ size_t Transition::Builder::getDuration() const {
 
 size_t Transition::Builder::getPeriod() const {
   return this->period;
+}
+
+size_t Transition::Builder::getMaxSteps() const {
+  return this->maxSteps;
 }
 
 bool Transition::Builder::isSetDuration() const {
@@ -102,14 +119,14 @@ std::shared_ptr<Transition> Transition::Builder::build() {
 
   if (numSet == 0) {
     setDuration(DEFAULT_DURATION);
-    setPeriod(DEFAULT_PERIOD);
+    setDurationAwarePeriod(defaultPeriod, duration, maxSteps);
   } else if (numSet == 1) {
     // If duration is unbound, bind it
     if (! isSetDuration()) {
       setDurationRaw(DEFAULT_DURATION);
     // Otherwise, bind the period
     } else {
-      setPeriod(DEFAULT_PERIOD);
+      setDurationAwarePeriod(defaultPeriod, duration, maxSteps);
     }
   }
 

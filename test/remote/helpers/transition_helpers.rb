@@ -2,9 +2,9 @@ require 'chroma'
 
 module TransitionHelpers
   module Defaults
-    DURATION = 4500
-    PERIOD = 450
-    NUM_PERIODS = 10
+    PERIOD = 500
+    NUM_PERIODS = 20
+    DURATION = PERIOD * NUM_PERIODS
   end
 
   def highlight_value(a, highlight_ix)
@@ -26,7 +26,7 @@ module TransitionHelpers
     end
   end
 
-  def transitions_are_equal(expected:, seen:, allowed_variation: 0, label: nil)
+  def transitions_are_equal(expected:, seen:, allowed_variation: 0, label: nil, trim_start: true)
     generate_msg = ->(a, b, i) do
       s = "Transition step value"
 
@@ -47,7 +47,29 @@ module TransitionHelpers
       s << "  Seen     : #{highlight_value(seen, i)}"
     end
 
-    expect(expected.length).to eq(seen.length)
+    # If enabled, trim any values at the start of "seen" that don't match the first element
+    # of "expected," along with any repeats of the first value.
+    #
+    # Example: expected = [1, 2, 3, 4, 5]
+    #          seen     = [nil, nil, 1, 1, 2, 3, 4, 5]
+    #          trim_start = true
+    #          result   = [1, 2, 3, 4, 5]
+    #
+    # This sometimes happens when receiving a packet from setting the initial state before
+    # scheduling the transition.
+    if trim_start
+      seen = seen.each_with_index.map.drop_while do |x, i|
+        # only drop if seen length > expected length
+        (seen.length - i) > expected.length && (
+          x != expected.first || (i < seen.length - 1 && seen[i+1] == x)
+        )
+      end.map { |x| x[0] }
+    end
+
+    expect(expected.length).to eq(seen.length),
+      "Transition was a different length than expected.\n" <<
+      "  Expected : #{expected}\n" <<
+      "  Seen     : #{seen}"
 
     expected.zip(seen).each_with_index do |x, i|
       a, b = x

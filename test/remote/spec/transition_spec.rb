@@ -3,7 +3,6 @@ require 'api_client'
 RSpec.describe 'Transitions' do
   before(:all) do
     @client = ApiClient.from_environment
-    @client.upload_json('/settings', 'settings.json')
     @transition_params = {
       field: 'level',
       start_value: 0,
@@ -12,9 +11,8 @@ RSpec.describe 'Transitions' do
       period: 400
     }
     @num_transition_updates = (@transition_params[:duration]*1000)/@transition_params[:period]
-  end
 
-  before(:each) do
+    @client.reset_settings
     mqtt_params = mqtt_parameters()
     @updates_topic = mqtt_params[:updates_topic]
     @topic_prefix = mqtt_topic_prefix()
@@ -25,7 +23,9 @@ RSpec.describe 'Transitions' do
         mqtt_update_topic_pattern: "#{@topic_prefix}updates/:device_id/:device_type/:group_id"
       )
     )
+  end
 
+  before(:each) do
     @id_params = {
       id: @client.generate_id,
       type: 'rgb_cct',
@@ -57,8 +57,19 @@ RSpec.describe 'Transitions' do
       expect(response['success']).to eq(true)
     end
 
+    it 'should accept device_type as an ID parameter' do
+      params = {
+        device_id: @id_params[:id],
+        device_type: @id_params[:type],
+        group_id: @id_params[:group_id]
+      }.merge(@transition_params)
+      response = @client.post("/transitions", params)
+
+      expect(response['success']).to eq(true)
+    end
+
     it 'should list active transitions' do
-      @client.schedule_transition(@id_params, @transition_params)
+      @client.schedule_transition(@id_params, {**@transition_params, duration: 100.0})
 
       response = @client.transitions
 
@@ -66,7 +77,7 @@ RSpec.describe 'Transitions' do
     end
 
     it 'should support getting an active transition with GET /transitions/:id' do
-      @client.schedule_transition(@id_params, @transition_params)
+      @client.schedule_transition(@id_params, {**@transition_params, duration: 100.0})
 
       response = @client.transitions
       detail_response = @client.get("/transitions/#{response.last['id']}")
@@ -75,7 +86,7 @@ RSpec.describe 'Transitions' do
     end
 
     it 'should support deleting active transitions with DELETE /transitions/:id' do
-      @client.schedule_transition(@id_params, @transition_params)
+      @client.schedule_transition(@id_params, {**@transition_params, duration: 100.0})
 
       response = @client.transitions
 
@@ -106,28 +117,27 @@ RSpec.describe 'Transitions' do
     end
 
     it 'should transition field' do
-      seen_updates = 0
+      seen_updates = []
       last_value = nil
 
       @client.patch_state({status: 'ON', level: 0}, @id_params)
 
       @mqtt_client.on_update(@id_params) do |id, msg|
-        if msg.include?('brightness')
-          seen_updates += 1
-          last_value = msg['brightness']
-        end
-
-        last_value == 255
+        seen_updates << msg['brightness']
+        seen_updates.last == 255
       end
 
       @client.patch_state({level: 100, transition: 2.0}, @id_params)
-
       @mqtt_client.wait_for_listeners
 
       expected_updates = calculate_transition_steps(start_value: 0, end_value: 255, duration: 2000)
 
-      expect(last_value).to eq(255)
-      expect(seen_updates).to eq(expected_updates.length)
+      transitions_are_equal(
+        expected: expected_updates,
+        seen: seen_updates,
+        # Allow some variation for the lossy level -> brightness conversion
+        allowed_variation: 2
+      )
     end
 
     it 'should transition a field downwards' do
@@ -136,6 +146,9 @@ RSpec.describe 'Transitions' do
 
       @client.patch_state({status: 'ON'}, @id_params)
       @client.patch_state({level: 100}, @id_params)
+
+      # Wait for the initial update to be sent
+      sleep 2
 
       @mqtt_client.on_update(@id_params) do |id, msg|
         if msg.include?('brightness')
@@ -161,6 +174,9 @@ RSpec.describe 'Transitions' do
 
       @client.patch_state({status: 'ON', hue: 0, level: 100}, @id_params)
 
+      # Wait for the initial update to be sent
+      sleep 2
+
       @mqtt_client.on_update(@id_params) do |id, msg|
         msg.each do |k, v|
           updates[k] ||= []
@@ -180,6 +196,16 @@ RSpec.describe 'Transitions' do
       expect(updates['brightness'].last).to eq(0)
       expect(updates['hue'].length == updates['brightness'].length).to eq(true), "Should have the same number of updates for both fields"
       expect(updates['hue'].length).to eq(expected_updates.length)
+    end
+
+    it 'should support creating long transitions' do
+      @client.patch_state({status: 'ON', level: 0}, @id_params)
+      @client.patch_state({level: 100, transition: 60000}, @id_params)
+
+      t = @client.transitions.last
+      calculated_duration = t['period'] * (100.to_f / t['step_size'])
+
+      expect(calculated_duration).to be_within(100).of(60000*1000), "Calculated duration should be close to 600s"
     end
   end
 
@@ -271,6 +297,20 @@ RSpec.describe 'Transitions' do
   end
 
   context 'status transition' do
+    it 'should turn off even if starting brightness is 0' do
+      @client.patch_state({status: 'ON', brightness: 0}, @id_params)
+      seen_off = false
+
+      @mqtt_client.on_update(@id_params) do |id, message|
+        seen_off = (message['state'] == 'OFF')
+      end
+
+      @client.patch_state({status: "OFF", transition: 1}, @id_params)
+      @mqtt_client.wait_for_listeners
+
+      expect(seen_off).to eq(true)
+    end
+
     it 'should transition from off -> on' do
       seen_updates = {}
       @client.patch_state({status: 'OFF'}, @id_params)
@@ -287,7 +327,7 @@ RSpec.describe 'Transitions' do
 
       @mqtt_client.wait_for_listeners
 
-      expect(seen_updates['state']).to eq(['ON'])
+      expect(seen_updates['state'].last).to eq('ON')
       transitions_are_equal(
         expected: calculate_transition_steps(start_value: 0, end_value: 255, duration: 1000),
         seen: seen_updates['brightness'],
@@ -321,10 +361,12 @@ RSpec.describe 'Transitions' do
       )
     end
 
-    it 'should transition from off -> on from 0 to a provided brightness, event when there is a last known brightness' do
+    it 'should transition from off -> on from 0 to a provided brightness, even when there is a last known brightness' do
       seen_updates = {}
       @client.patch_state({status: 'ON', brightness: 99}, @id_params)
       @client.patch_state({status: 'OFF'}, @id_params)
+
+      sleep 2
 
       @mqtt_client.on_update(@id_params) do |id, message|
         message.each do |k, v|
@@ -346,7 +388,7 @@ RSpec.describe 'Transitions' do
       )
     end
 
-    it 'should transition from off -> on from 0 to 100, even when there is a last known brightness' do
+    it 'should transition from off -> on from 0 to 100, even when there is a last known brightness if the bulb is off' do
       seen_updates = {}
       @client.patch_state({status: 'ON', brightness: 99}, @id_params)
       @client.patch_state({status: 'OFF'}, @id_params)
@@ -359,12 +401,36 @@ RSpec.describe 'Transitions' do
         seen_updates['brightness'] && seen_updates['brightness'].last == 255
       end
 
-      @client.patch_state({status: 'ON', transition: 1.0}, @id_params)
+      @mqtt_client.patch_state(@id_params, {state: 'ON', transition: 1.0})
 
       @mqtt_client.wait_for_listeners
 
       transitions_are_equal(
         expected: calculate_transition_steps(start_value: 0, end_value: 255, duration: 1000),
+        seen: seen_updates['brightness'],
+        # Allow some variation for the lossy level -> brightness conversion
+        allowed_variation: 4
+      )
+    end
+
+    it 'should transition from last known brightness if the bulb is already on' do
+      seen_updates = {}
+      @client.patch_state({status: 'ON', brightness: 99}, @id_params)
+
+      @mqtt_client.on_update(@id_params) do |id, message|
+        message.each do |k, v|
+          seen_updates[k] ||= []
+          seen_updates[k] << v
+        end
+        seen_updates['brightness'] && seen_updates['brightness'].last == 255
+      end
+
+      @mqtt_client.patch_state(@id_params, {state: 'ON', brightness: 255, transition: 1.0})
+
+      @mqtt_client.wait_for_listeners
+
+      transitions_are_equal(
+        expected: calculate_transition_steps(start_value: 99, end_value: 255, duration: 1000),
         seen: seen_updates['brightness'],
         # Allow some variation for the lossy level -> brightness conversion
         allowed_variation: 4
@@ -402,6 +468,8 @@ RSpec.describe 'Transitions' do
       @client.patch_state({status: 'ON', level: 0}, @id_params)
       @client.patch_state({status: 'OFF'}, @id_params)
 
+      sleep 2
+
       @mqtt_client.on_update(@id_params) do |id, message|
         message.each do |k, v|
           seen_updates[k] ||= []
@@ -411,10 +479,9 @@ RSpec.describe 'Transitions' do
       end
 
       @client.patch_state({status: 'ON', brightness: 128, transition: 1.0}, @id_params)
-
       @mqtt_client.wait_for_listeners
 
-      expect(seen_updates['state']).to eq(['ON'])
+      expect(seen_updates['state'].last).to eq('ON')
       transitions_are_equal(
         expected: calculate_transition_steps(start_value: 0, end_value: 128, duration: 1000),
         seen: seen_updates['brightness'],
@@ -443,7 +510,11 @@ RSpec.describe 'Transitions' do
 
         @client.patch_state({'status' => 'ON', field => min}, @id_params)
 
+        # Wait for the initial update to be sent
+        sleep 2
+
         @mqtt_client.on_update(@id_params) do |id, message|
+          puts "didn't include #{update_field}: #{message}" unless message.include?(update_field)
           seen_updates << message
           message[update_field] == update_max
         end
@@ -588,9 +659,8 @@ RSpec.describe 'Transitions' do
 
   context 'computed parameters' do
     (@transition_defaults = {
-      duration: {default: 4.5, test: 2},
-      num_periods: {default: 10, test: 5},
-      period: {default: 450, test: 225}
+      duration: {default: 10.0, test: 2},
+      period: {default: 500, test: 225}
     }).each do |k, params|
       it "it should compute other parameters given only #{k}" do
         seen_values = 0
@@ -627,9 +697,60 @@ RSpec.describe 'Transitions' do
         expected_duration = (k == :duration ? params[:test] : (TransitionHelpers::Defaults::DURATION/1000.0))
         num_periods = (expected_duration/period.to_f)*1000
 
-        expect(duration).to be_within(1.5).of(expected_duration)
+        expect(duration).to be_within(3).of(expected_duration)
         expect(gap).to be_within(10).of((255/num_periods).ceil)
       end
+    end
+  end
+
+  context 'default parameters in settings' do
+    it 'should respect the default parameter setting key' do
+      [500, 1000, 2000].each do |period|
+        field = 'brightness'
+
+        @client.patch_settings(default_transition_period: period)
+        @client.delete_state(@id_params)
+        @client.patch_state({'status' => 'ON', field => 0}, @id_params)
+        seen_updates = []
+
+        sleep 2
+
+        @mqtt_client.on_update(@id_params) do |id, message|
+          seen_updates << message[field] if !message[field].nil?
+          seen_updates.last == 255
+        end
+
+        @client.patch_state({field => 255, 'transition' => 2.0, period: period}, @id_params)
+
+        @mqtt_client.wait_for_listeners
+        @mqtt_client = create_mqtt_client()
+
+        transitions_are_equal(
+          expected: calculate_transition_steps(start_value: 0, end_value: 255, duration: 2000, period: period),
+          seen: seen_updates,
+          allowed_variation: 3
+        )
+      end
+    end
+
+    it 'for upwards transition, should throttle frequency if step size does not allow for default period' do
+      @client.patch_state({status: "ON", brightness: 0}, @id_params)
+      @client.patch_state({brightness: 255, transition: 3600}, @id_params)
+
+      transitions = @client.transitions
+
+      expect(transitions.count).to eq(1)
+      expect(transitions.first['period']).to eq((3600000/255.0).round)
+    end
+
+    it 'for downwards transition, should throttle frequency if step size does not allow for default period' do
+      @client.patch_state({status: "ON", brightness: 255}, @id_params)
+      @client.patch_state({brightness: 0, transition: 3600}, @id_params)
+
+      transitions = @client.transitions
+
+      expect(transitions.count).to eq(1)
+      expect(transitions.first['period']).to eq((3600000/255.0).round)
     end
   end
 end

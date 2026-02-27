@@ -13,16 +13,31 @@ public:
   using TransitionFn = std::function<void(const BulbId& bulbId, GroupStateField field, uint16_t value)>;
 
   // transition commands are in seconds, convert to ms.
-  static const uint16_t DURATION_UNIT_MULTIPLIER = 1000;
+  static const uint16_t DURATION_UNIT_MULTIPLIER;
 
+  // If period goes lower than this, throttle other parameters up to adjust.
+  static const size_t MIN_PERIOD;
+  static const size_t DEFAULT_DURATION;
 
   class Builder {
   public:
-    Builder(size_t id, const BulbId& bulbId, TransitionFn callback);
+    Builder(size_t id, uint16_t defaultPeriod, const BulbId& bulbId, TransitionFn callback, size_t maxSteps);
 
     Builder& setDuration(float duration);
     Builder& setPeriod(size_t period);
-    Builder& setNumPeriods(size_t numPeriods);
+
+    /**
+     * Users are typically defining transitions using:
+     *   1. The desired end state (and implicitly the start state, assumed to be current)
+     *   2. The duraiton
+     * The user only cares about the period to the degree that it affects the smoothness of
+     * the transition.
+     *
+     * For example, if the user wants to throttle brightness from 0 -> 100 over 5min, the
+     * default period is going to be way too short to enable that.  So we need to force the
+     * period to be longer to fit the duration.
+     */
+    Builder& setDurationAwarePeriod(size_t desiredPeriod, size_t duration, size_t maxSteps);
 
     void setDurationRaw(size_t duration);
 
@@ -37,10 +52,12 @@ public:
     size_t getDuration() const;
     size_t getPeriod() const;
     size_t getNumPeriods() const;
+    size_t getMaxSteps() const;
 
     std::shared_ptr<Transition> build();
 
     const size_t id;
+    const uint16_t defaultPeriod;
     const BulbId& bulbId;
     const TransitionFn callback;
 
@@ -48,19 +65,11 @@ public:
     size_t duration;
     size_t period;
     size_t numPeriods;
+    size_t maxSteps;
 
     virtual std::shared_ptr<Transition> _build() const = 0;
     size_t numSetParams() const;
   };
-
-  // Default time to wait between steps.  Do this rather than having a fixed step size because it's
-  // more capable of adapting to different situations.
-  static const size_t DEFAULT_PERIOD = 450;
-  static const size_t DEFAULT_NUM_PERIODS = 10;
-  static const size_t DEFAULT_DURATION = DEFAULT_PERIOD*DEFAULT_NUM_PERIODS;
-
-  // If period goes lower than this, throttle other parameters up to adjust.
-  static const size_t MIN_PERIOD = 150;
 
   const size_t id;
   const BulbId bulbId;

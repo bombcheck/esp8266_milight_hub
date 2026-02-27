@@ -3,7 +3,7 @@ require 'api_client'
 RSpec.describe 'MQTT' do
   before(:all) do
     @client = ApiClient.new(ENV.fetch('ESPMH_HOSTNAME'), ENV.fetch('ESPMH_TEST_DEVICE_ID_BASE'))
-    @client.upload_json('/settings', 'settings.json')
+    @client.reset_settings
   end
 
   before(:each) do
@@ -13,7 +13,7 @@ RSpec.describe 'MQTT' do
 
     @client.put(
       '/settings',
-      mqtt_params
+      mqtt_params.merge(mqtt_retain: true)
     )
 
     @id_params = {
@@ -40,6 +40,30 @@ RSpec.describe 'MQTT' do
       @mqtt_client.wait_for_listeners
 
       expect(seen_blank).to eq(true)
+    end
+  end
+
+  context 'retained messages' do
+    it 'should publish retained state messages when enabled' do
+      @client.put('/settings', mqtt_retain: true)
+      @client.patch_state({status: 'ON'}, @id_params)
+
+      # Sleep to make sure we're getting a retained message
+      sleep 1
+
+      @mqtt_client.on_state(@id_params) { true }
+      @mqtt_client.wait_for_listeners
+    end
+
+    it 'should not publish retained state messages when not enabled' do
+      @client.put('/settings', mqtt_retain: false)
+      @client.patch_state({status: 'ON'}, @id_params)
+
+      # Sleep to make sure we're getting a retained message
+      sleep 1
+
+      @mqtt_client.on_state(@id_params) { true }
+      expect { @mqtt_client.wait_for_listeners }.to raise_error(Timeout::Error)
     end
   end
 
@@ -170,7 +194,7 @@ RSpec.describe 'MQTT' do
       update_timestamp_gaps = []
       num_updates = 50
 
-      @mqtt_client.on_state(@id_params) do |id, message|
+      @mqtt_client.on_state(@id_params, 20) do |id, message|
         next_time = Time.now
         if last_seen != 0
           update_timestamp_gaps << next_time - last_seen
@@ -182,7 +206,6 @@ RSpec.describe 'MQTT' do
 
       (1..num_updates).each do |i|
         @mqtt_client.patch_state(@id_params, level: i)
-        sleep 0.1
       end
 
       @mqtt_client.wait_for_listeners
@@ -192,6 +215,57 @@ RSpec.describe 'MQTT' do
 
       expect(update_timestamp_gaps.length).to be >= 3
       expect((avg - 0.5).abs).to be < 0.15, "Should be within margin of error of rate limit"
+    end
+
+    it 'should respect the update debouce interval' do
+      @client.put(
+        '/settings',
+        mqtt_debounce_delay: 1000,
+        packet_repeats: 1
+      )
+
+      start_time = Time.now
+
+      @mqtt_client.on_state(@id_params) do |id, message|
+        true
+      end
+
+      # Set initial state
+      @client.patch_state({status: 'ON', level: 0}, @id_params)
+      @mqtt_client.wait_for_listeners
+
+      expect(Time.now - start_time).to be >= 1
+    end
+
+    it 'should only send one state update for many commands if debounce interval is enabled' do
+      @client.put(
+        '/settings',
+        mqtt_update_topic_pattern: '',
+        mqtt_debounce_delay: 1000,
+        packet_repeats: 1
+      )
+
+      # Set initial state
+      @client.patch_state({status: 'ON', level: 0}, { **@id_params, blockOnQueue: true })
+
+      num_updates = 10
+      seen_updates = 0
+      last_level_value = 0
+
+      @mqtt_client.on_state(@id_params, 20) do |id, message|
+        seen_updates += 1
+        last_level_value = message['level']
+        last_level_value == num_updates
+      end
+
+      (1..num_updates).each do |i|
+        @mqtt_client.patch_state(@id_params, level: i)
+      end
+
+      @mqtt_client.wait_for_listeners
+
+      expect(seen_updates).to eq(1)
+      expect(last_level_value).to eq(num_updates)
     end
   end
 

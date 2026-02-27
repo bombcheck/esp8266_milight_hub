@@ -1,24 +1,30 @@
 #include <HomeAssistantDiscoveryClient.h>
 #include <MiLightCommands.h>
+#include <Units.h>
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>
+#elif ESP32
+  #include <WiFi.h>
+#endif
 
 HomeAssistantDiscoveryClient::HomeAssistantDiscoveryClient(Settings& settings, MqttClient* mqttClient)
   : settings(settings)
   , mqttClient(mqttClient)
 { }
 
-void HomeAssistantDiscoveryClient::sendDiscoverableDevices(const std::map<String, BulbId>& aliases) {
+void HomeAssistantDiscoveryClient::sendDiscoverableDevices(const std::map<String, GroupAlias>& aliases) {
 #ifdef MQTT_DEBUG
-  Serial.println(F("HomeAssistantDiscoveryClient: Sending discoverable devices..."));
+  Serial.printf_P(PSTR("HomeAssistantDiscoveryClient: Sending %d discoverable devices...\n"), aliases.size());
 #endif
 
-  for (auto itr = aliases.begin(); itr != aliases.end(); ++itr) {
-    addConfig(itr->first.c_str(), itr->second);
+  for (const auto & alias : aliases) {
+    addConfig(alias.first.c_str(), alias.second.bulbId);
   }
 }
 
 void HomeAssistantDiscoveryClient::removeOldDevices(const std::map<uint32_t, BulbId>& aliases) {
 #ifdef MQTT_DEBUG
-  Serial.println(F("HomeAssistantDiscoveryClient: Removing discoverable devices..."));
+  Serial.printf_P(PSTR("HomeAssistantDiscoveryClient: Removing %d discoverable devices...\n"), aliases.size());
 #endif
 
   for (auto itr = aliases.begin(); itr != aliases.end(); ++itr) {
@@ -36,33 +42,50 @@ void HomeAssistantDiscoveryClient::addConfig(const char* alias, const BulbId& bu
   String topic = buildTopic(bulbId);
   DynamicJsonDocument config(1024);
 
+  // Unique ID for this device + alias combo
+  char uniqueIdBuffer[30];
+  snprintf_P(uniqueIdBuffer, sizeof(uniqueIdBuffer), PSTR("%X-%s"), getESPId(), alias);
+
+  // String to ID the firmware version
+  char fwVersion[100];
+  snprintf_P(fwVersion, sizeof(fwVersion), PSTR("esp8266_milight_hub v%s"), QUOTE(MILIGHT_HUB_VERSION));
+
+  // URL to the device
+  char deviceUrl[23];
+  snprintf_P(deviceUrl, sizeof(deviceUrl), PSTR("http://%s"), WiFi.localIP().toString().c_str());
+
+  config[F("dev_cla")] = F("light");
   config[F("schema")] = F("json");
   config[F("name")] = alias;
-  config[F("command_topic")] = mqttClient->bindTopicString(settings.mqttTopicPattern, bulbId);
-  config[F("state_topic")] = mqttClient->bindTopicString(settings.mqttStateTopicPattern, bulbId);
-  JsonObject deviceMetadata = config.createNestedObject(F("device"));
+  // command topic
+  config[F("cmd_t")] = mqttClient->bindTopicString(settings.mqttTopicPattern, bulbId);
+  // state topic
+  config[F("stat_t")] = mqttClient->bindTopicString(settings.mqttStateTopicPattern, bulbId);
+  config[F("uniq_id")] = uniqueIdBuffer;
 
-  deviceMetadata[F("manufacturer")] = F("esp8266_milight_hub");
-  deviceMetadata[F("sw_version")] = QUOTE(MILIGHT_HUB_VERSION);
-
-  JsonArray identifiers = deviceMetadata.createNestedArray(F("identifiers"));
-  identifiers.add(ESP.getChipId());
-  bulbId.serialize(identifiers);
+  JsonObject deviceMetadata = config.createNestedObject(F("dev"));
+  deviceMetadata[F("name")] = settings.hostname;
+  deviceMetadata[F("sw")] = fwVersion;
+  deviceMetadata[F("mf")] = F("espressif");
+  deviceMetadata[F("mdl")] = QUOTE(FIRMWARE_VARIANT);
+  deviceMetadata[F("identifiers")] = String(getESPId());
+  deviceMetadata[F("cu")] = deviceUrl;
 
   // HomeAssistant only supports simple client availability
   if (settings.mqttClientStatusTopic.length() > 0 && settings.simpleMqttClientStatus) {
-    config[F("availability_topic")] = settings.mqttClientStatusTopic;
-    config[F("payload_available")] = F("connected");
-    config[F("payload_not_available")] = F("disconnected");
+    // availability topic
+    config[F("avty_t")] = settings.mqttClientStatusTopic;
+    // payload_available
+    config[F("pl_avail")] = F("connected");
+    // payload_not_available
+    config[F("pl_not_avail")] = F("disconnected");
   }
 
   // Configure supported commands based on the bulb type
-
-  // All supported bulbs support brightness and night mode
-  config[GroupStateFieldNames::BRIGHTNESS] = true;
   config[GroupStateFieldNames::EFFECT] = true;
 
-  JsonArray effects = config.createNestedArray(F("effect_list"));
+  // effect_list
+  JsonArray effects = config.createNestedArray(F("fx_list"));
   effects.add(MiLightCommandNames::NIGHT_MODE);
 
   // These bulbs support switching between rgb/white, and have a "white_mode" command
@@ -88,28 +111,26 @@ void HomeAssistantDiscoveryClient::addConfig(const char* alias, const BulbId& bu
       break;
   }
 
-  // These bulbs support RGB color
-  switch (bulbId.deviceType) {
-    case REMOTE_TYPE_FUT089:
-    case REMOTE_TYPE_RGB:
-    case REMOTE_TYPE_RGB_CCT:
-    case REMOTE_TYPE_RGBW:
-      config[F("rgb")] = true;
-      break;
-    default:
-      break; //nothing
+  // supported_color_modes
+  JsonArray colorModes = config.createNestedArray(F("sup_clrm"));
+
+  // Flag RGB support
+  if (MiLightRemoteTypeHelpers::supportsRgb(bulbId.deviceType)) {
+    colorModes.add(F("rgb"));
   }
 
-  // These bulbs support adjustable white values
-  switch (bulbId.deviceType) {
-    case REMOTE_TYPE_CCT:
-    case REMOTE_TYPE_FUT089:
-    case REMOTE_TYPE_FUT091:
-    case REMOTE_TYPE_RGB_CCT:
-      config[GroupStateFieldNames::COLOR_TEMP] = true;
-      break;
-    default:
-      break; //nothing
+  // Flag adjustable color temp support
+  if (MiLightRemoteTypeHelpers::supportsColorTemp(bulbId.deviceType)) {
+    colorModes.add(GroupStateFieldNames::COLOR_TEMP);
+
+    config[F("max_mirs")] = COLOR_TEMP_MAX_MIREDS;
+    config[F("min_mirs")] = COLOR_TEMP_MIN_MIREDS;
+  }
+
+  // should only have brightness in this list if there are no other color modes
+  // https://www.home-assistant.io/integrations/light.mqtt/#supported_color_modes
+  if (colorModes.size() == 0) {
+    colorModes.add(F("brightness"));
   }
 
   String message;
@@ -138,7 +159,7 @@ String HomeAssistantDiscoveryClient::buildTopic(const BulbId& bulbId) {
 
   topic += "light/";
   // Use a static ID that doesn't depend on configuration.
-  topic += "milight_hub_" + String(ESP.getChipId());
+  topic += "milight_hub_" + String(getESPId());
 
   // make the object ID based on the actual parameters rather than the alias.
   topic += "/";

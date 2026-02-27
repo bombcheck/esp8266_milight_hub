@@ -2,6 +2,7 @@
 
 #include <BulbId.h>
 #include <MqttClient.h>
+#include <ESPId.h>
 #include <map>
 
 class HomeAssistantDiscoveryClient {
@@ -11,7 +12,7 @@ public:
   void addConfig(const char* alias, const BulbId& bulbId);
   void removeConfig(const BulbId& bulbId);
 
-  void sendDiscoverableDevices(const std::map<String, BulbId>& aliases);
+  void sendDiscoverableDevices(const std::map<String, GroupAlias>& aliases);
   void removeOldDevices(const std::map<uint32_t, BulbId>& aliases);
 
 private:

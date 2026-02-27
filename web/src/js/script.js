@@ -39,6 +39,9 @@ var UI_TABS = [ {
   }, {
     tag: "tab-mqtt",
     friendly: "MQTT"
+  }, {
+    tag: "tab-transitions",
+    friendly: "Transitions"
   }
 ];
 
@@ -188,6 +191,16 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
+    tag:   "mqtt_retain",
+    friendly: "Publish state messages with retain flag",
+    help: "If enabled, state messages will be published with the MQTT retain flag.",
+    type: "option_buttons",
+    options: {
+      true: "Enabled",
+      false: "Disabled"
+    },
+    tab: "tab-mqtt"
+  }, {
     tag:   "simple_mqtt_client_status",
     friendly: "Client Status Messages Mode",
     help: "In simple mode, only the strings 'connected' and 'disconnected' will be published.  In detailed mode, data about the version, IP address, etc. will be included.",
@@ -271,6 +284,12 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
+    tag:   "mqtt_debounce_delay",
+    friendly: "MQTT debounce delay",
+    help: "Minimum number of milliseconds delay for MQTT state updates after change (defaults to 500)",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
     tag:   "packet_repeat_throttle_threshold",
     friendly: "Packet repeat throttle threshold",
     help: "Controls how packet repeats are throttled.  Packets sent " +
@@ -342,6 +361,13 @@ var UI_FIELDS = [ {
     help: "Number of times the LED will flash when packets are changing",
     type: "string",
     tab: "tab-led"
+  }, {
+    tag: "default_transition_period",
+    friendly: "Default transition period (milliseconds)",
+    help: "Controls how many milliseconds pass between transition packets. "+
+      "For more granular transitions, set this lower.",
+    type: "string",
+    tab: "tab-transitions"
   }
 ];
 
@@ -364,7 +390,8 @@ var GROUP_STATE_KEYS = [
   "group_id",
   "device_type",
   "oh_color",
-  "hex_color"
+  "hex_color",
+  "color_mode"
 ];
 
 var LED_MODES = [
@@ -556,14 +583,52 @@ var gatewayServerRow = function(deviceId, port, version) {
   return elmt;
 }
 
+// Load aliases from the /aliases.bin which is in null-terminated format
+var loadAliases = function() {
+  return new Promise(function(resolve, reject) {
+    $.get('/aliases.bin', function (data) {
+      var parts = data.split('\0');
+      var aliases = [];
+
+      // Skip over first token, which will just be the number of aliases
+      for (var i = 1; (i + 4) < parts.length; i += 5) {
+          aliases.push({
+              id: parts[i],
+              alias: parts[i + 1],
+              device_type: parts[i + 2],
+              device_id: parts[i + 3],
+              group_id: parts[i + 4]
+          });
+      }
+      return resolve(aliases);
+    });
+  });
+}
+
+// convenience function to load /settings and paged /aliases
+var loadSettingsAndAliases = function() {
+  return new Promise(function(resolve, reject) {
+    $.getJSON('/settings', function(val) {
+      loadAliases().then(function(aliases) {
+          resolve({settings: val, aliases: aliases});
+      });
+    });
+  });
+}
+
 var loadSettings = function() {
   $('select.select-init').selectpicker();
   if (location.hostname == "") {
     // if deugging locally, don't try get settings
     return;
   }
-  $.getJSON('/settings', function(val) {
+
+  loadSettingsAndAliases().then(function(v) {
+    var val = v.settings;
+    var aliases = v.aliases;
     loadingSettings = true;
+
+    console.log(val, aliases);
 
     Object.keys(val).forEach(function(k) {
       var field = $('#settings input[name="' + k + '"]');
@@ -592,27 +657,20 @@ var loadSettings = function() {
       $('.navbar-brand').html(title);
     }
 
-    if (val.group_id_aliases) {
-      aliasesSelectize.clearOptions();
-      Object.entries(val.group_id_aliases).forEach(function(entry) {
-        var label = entry[0]
-          , groupParams = entry[1]
-          , savedParams = {
-                deviceType: groupParams[0],
-                deviceId: groupParams[1],
-                groupId: groupParams[2]
-            }
-          ;
-
-        aliasesSelectize.addOption({
-          text: label,
-          value: label,
-          savedGroupParams: savedParams
-        });
-
-        aliasesSelectize.refreshOptions(false);
+    aliasesSelectize.clearOptions();
+    aliases.forEach(function(entry) {
+      aliasesSelectize.addOption({
+        text: entry.alias,
+        value: entry.alias,
+        id: entry.id,
+        savedGroupParams: {
+          deviceType: entry.device_type,
+          deviceId: entry.device_id,
+          groupId: entry.group_id,
+        }
       });
-    }
+    });
+    aliasesSelectize.refreshOptions(false);
 
     if (val.device_ids) {
       selectize.clearOptions();
@@ -736,22 +794,45 @@ var saveDeviceIds = function() {
 
 var saveDeviceAliases = function() {
   if (!loadingSettings) {
-    var deviceAliases = Object.entries(aliasesSelectize.options).reduce(
-      function(aggregate, x) {
-        var params = x[1].savedGroupParams;
+    var deviceAliases = Object.values(aliasesSelectize.options).reduce(
+        function (aggregate, x, index) {
+          var params = x.savedGroupParams;
+          x.id = index + 1;
 
-        aggregate[x[0]] = [
-          params.deviceType,
-          params.deviceId,
-          params.groupId
-        ]
+          aggregate.push([
+            x.id,
+            x.value,
+            params.deviceType,
+            params.deviceId,
+            params.groupId
+          ]);
 
-        return aggregate;
-      },
-      {}
+          return aggregate;
+        },
+        []
     );
 
-    patchSettings({group_id_aliases: deviceAliases});
+    var csv = deviceAliases.map(function (x) {
+      return x.join('\0');
+    }).join('\0');
+    csv = deviceAliases.length + '\0' + csv;
+
+    // post string as a file
+    var formData = new FormData();
+    formData.append(
+      'file',
+      new File([new Blob([csv], {type: 'application/octet-stream'})], 'aliases.bin')
+    );
+
+    $.ajax(
+        '/aliases.bin',
+        {
+          method: 'post',
+          data: formData,
+          processData: false,
+          contentType: false
+        }
+    );
   }
 };
 
@@ -762,9 +843,18 @@ var deleteDeviceId = function() {
 };
 
 var deleteDeviceAlias = function() {
-  aliasesSelectize.removeOption($(this).data('value'));
-  aliasesSelectize.refreshOptions();
-  saveDeviceAliases();
+  var alias = $(this).data('value');
+  var option = aliasesSelectize.options[alias];
+  option.disabled = true;
+
+  // call DELETE /aliases/:id
+  $.ajax('/aliases/' + option.id, {
+    method: 'delete',
+    success: function() {
+      aliasesSelectize.removeOption(alias);
+      aliasesSelectize.refreshOptions();
+    }
+  });
 };
 
 var deviceIdError = function(v) {
@@ -1083,6 +1173,26 @@ $(function() {
       option: function(data, escape) {
         // Mousedown selects an option -- prevent event from bubbling up to select option
         // when delete button is clicked.
+        var editBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-edit"></i></a></span>')
+            .mousedown(function(e) {
+              e.preventDefault();
+              return false;
+            })
+            .click(function(e) {
+              aliasesSelectize.close();
+              aliasesSelectize.clear();
+
+              // set value in textbox to current alias
+              var alias = aliasesSelectize.options[data.value];
+              $('.selectize-input input#deviceAliases-selectized').val(alias.text).focus();
+
+              deleteDeviceAlias.call($(this).closest('.c-selectize-item'));
+              e.preventDefault();
+              return false;
+            });
+
+        // Mousedown selects an option -- prevent event from bubbling up to select option
+        // when delete button is clicked.
         var deleteBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-trash"></i></a></span>')
           .mousedown(function(e) {
             e.preventDefault();
@@ -1098,19 +1208,23 @@ $(function() {
         elmt.append('<span>' + data.text + '</span>');
         elmt.append(deleteBtn);
 
+        // only add edit button if item is selected
+        if (aliasesSelectize.getValue() === data.value) {
+          elmt.append(editBtn);
+        }
+
         return elmt;
       }
     },
     onOptionAdd: function(v, item) {
-      if (!item.savedGroupParams) {
-        item.savedGroupParams = {
-          deviceId: getCurrentDeviceId(),
-          groupId: getCurrentGroupId(),
-          deviceType: getCurrentMode()
-        };
-      }
+      item.savedGroupParams = item.savedGroupParams || {
+        deviceId: getCurrentDeviceId(),
+        groupId: getCurrentGroupId(),
+        deviceType: getCurrentMode()
+      };
 
       saveDeviceAliases();
+      aliasesSelectize.clearCache();
     }
   })[0].selectize;
 
@@ -1231,6 +1345,27 @@ $(function() {
 
   $('#settings').prepend(settings);
 
+  function saveSettings(settingsEntries) {
+    var entries = settingsEntries.slice(0)
+
+    function saveBatch() {
+      if (entries.length > 0) {
+        var batch = Object.fromEntries(entries.splice(0, 30))
+        $.ajax(
+          "/settings",
+          {
+            method: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify(batch)
+          }
+        )
+        .done(saveBatch)
+      }
+    }
+
+    saveBatch()
+  }
+
   $('#settings').submit(function(e) {
     e.preventDefault();
 
@@ -1262,15 +1397,7 @@ $(function() {
       // Make sure we're submitting a value for group_state_fields (will be empty
       // if no values were selected).
       obj = $.extend({group_state_fields: []}, obj);
-
-      $.ajax(
-        "/settings",
-        {
-          method: 'put',
-          contentType: 'application/json',
-          data: JSON.stringify(obj)
-        }
-      );
+      saveSettings(Object.entries(obj))
     }
 
     $('#settings-modal').modal('hide');
@@ -1317,6 +1444,8 @@ $(function() {
     if (selectizeItem && !updatingAlias) {
       updateGroupId(selectizeItem.savedGroupParams);
     }
+
+    aliasesSelectize.clearCache();
   });
 
   $(document).ready( function() {
