@@ -869,6 +869,13 @@ void GroupState::applyField(JsonObject partialState, const BulbId& bulbId, Group
         ) {
           partialState[GroupStateFieldNames::COLOR_MODE] = F("rgb");
         } else if (
+          MiLightRemoteTypeHelpers::supportsRgb(bulbId.deviceType) 
+          && getBulbMode() == BULB_MODE_WHITE
+        ) {
+          if (MiLightRemoteTypeHelpers::supportsColorTemp(bulbId.deviceType))
+          { partialState[GroupStateFieldNames::COLOR_MODE] = F("color_temp"); }
+          else { partialState[GroupStateFieldNames::COLOR_MODE] = F("rgb"); }
+        } else if (
           MiLightRemoteTypeHelpers::supportsColorTemp(bulbId.deviceType) 
           && getBulbMode() == BULB_MODE_WHITE
         ) {
