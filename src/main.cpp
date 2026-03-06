@@ -59,11 +59,6 @@ MqttClient* mqttClient = NULL;
 MiLightDiscoveryServer* discoveryServer = NULL;
 uint8_t currentRadioType = 0;
 
-unsigned long lastWifiCheck = 0;
-unsigned long lastMqttCheck = 0;
-const unsigned long WIFI_RECONNECT_INTERVAL = 20000;
-const unsigned long MQTT_CHECK_INTERVAL = 10000;
-
 // System Status Timer & Counters
 unsigned long lastSystemStatusTime = 0;
 const unsigned long SYSTEM_STATUS_INTERVAL = 30000; 
