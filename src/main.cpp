@@ -225,7 +225,7 @@ void onUpdateEnd() {
 }
 
 void publishSystemState() {
-  if (!mqttClient || !mqttClient->isConnected()) return;
+  if (! mqttClient || ! mqttClient->connected()) return;
 
   unsigned long now = millis();
   if (now - lastSystemStatusTime < SYSTEM_STATUS_INTERVAL) return;
@@ -236,7 +236,11 @@ void publishSystemState() {
   doc["rssi"] = WiFi.RSSI();
   doc["uptime"] = millis() / 1000;
   doc["heap"] = ESP.getFreeHeap();
-  doc["rst"] = String(esp_reset_reason());
+  #ifdef ESP8266
+    doc["rst"] = ESP.getResetReason();
+  #elif ESP32
+    doc["rst"] = String(esp_reset_reason());
+  #endif
   doc["rf_rx"] = rfPacketsRx;
   doc["rf_tx"] = rfPacketsTx;
   doc["rf_type"] = Settings::typeToString(settings.radioInterfaceType);
