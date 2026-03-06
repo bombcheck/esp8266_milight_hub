@@ -225,7 +225,7 @@ void onUpdateEnd() {
 }
 
 void publishSystemState() {
-  if (! mqttClient || ! mqttClient->connected()) return;
+  if (!mqttClient) return;
 
   unsigned long now = millis();
   if (now - lastSystemStatusTime < SYSTEM_STATUS_INTERVAL) return;
@@ -317,9 +317,9 @@ void applySettings() {
       }
       
       // make sure state is up to date
-      for (auto itr = settings.groupIdAliases.begin(); itr != settings.groupIdAliases.end(); ++itr) {
-        bulbStateUpdater->enqueueUpdate(itr->second);
-      }
+      //for (auto itr = settings.groupIdAliases.begin(); itr != settings.groupIdAliases.end(); ++itr) {
+      //  bulbStateUpdater->enqueueUpdate(itr->second);
+      //}
     });
 
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);
