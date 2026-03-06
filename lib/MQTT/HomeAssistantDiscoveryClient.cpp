@@ -192,3 +192,62 @@ void HomeAssistantDiscoveryClient::addNumberedEffects(JsonArray& effectList, uin
     effectList.add(String(i));
   }
 }
+
+void HomeAssistantDiscoveryClient::addSensorConfig(const char* name, const char* object_id, const char* device_class, const char* unit_of_meas, const char* value_template, const char* entity_category) {
+  DynamicJsonDocument config(1024);
+  String espId = String(getESPId());
+  
+  String topic = settings.homeAssistantDiscoveryPrefix;
+  if (!topic.endsWith("/")) topic += "/";
+  topic += "sensor/milight_hub_" + espId + "/" + object_id + "/config";
+
+  char uniqueIdBuffer[64];
+  snprintf_P(uniqueIdBuffer, sizeof(uniqueIdBuffer), PSTR("%X-system-%s"), getESPId(), object_id);
+
+  config[F("name")] = String(settings.hostname) + " " + name;
+  config[F("uniq_id")] = uniqueIdBuffer;
+  
+  JsonObject device = config.createNestedObject(F("dev"));
+  device[F("ids")] = espId;
+  device[F("name")] = settings.hostname;
+  device[F("mf")] = F("espressif");
+  device[F("mdl")] = QUOTE(FIRMWARE_VARIANT);
+  device[F("sw")] = QUOTE(MILIGHT_HUB_VERSION);
+
+  String stateTopic = settings.mqttTopicPattern;
+  int firstSlash = stateTopic.indexOf('/');
+  String prefix = (firstSlash > 0) ? stateTopic.substring(0, firstSlash) : "milight";
+  config[F("stat_t")] = prefix + "/system_status/" + espId;
+
+  config[F("val_tpl")] = value_template;
+
+  if (device_class) config[F("dev_cla")] = device_class;
+  if (unit_of_meas) config[F("unit_of_meas")] = unit_of_meas;
+  if (entity_category) config[F("ent_cat")] = entity_category;
+
+  if (String(object_id) == "rf_rx" || String(object_id) == "rf_tx" || String(object_id) == "drop_pkt") {
+    config[F("stat_cla")] = F("total_increasing");
+  }
+
+  if (settings.mqttClientStatusTopic.length() > 0 && settings.simpleMqttClientStatus) {
+    config[F("avty_t")] = settings.mqttClientStatusTopic;
+    config[F("pl_avail")] = F("connected");
+    config[F("pl_not_avail")] = F("disconnected");
+  }
+
+  String message;
+  serializeJson(config, message);
+  mqttClient->send(topic.c_str(), message.c_str(), true);
+}
+
+void HomeAssistantDiscoveryClient::sendSystemSensors() {
+  addSensorConfig("IP Address", "ip", nullptr, nullptr, "{{ value_json.ip }}", "diagnostic");
+  addSensorConfig("WiFi Signal", "rssi", "signal_strength", "dBm", "{{ value_json.rssi }}", nullptr);
+  addSensorConfig("Uptime", "uptime", "duration", "s", "{{ value_json.uptime }}", "diagnostic");
+  addSensorConfig("Free Heap", "free_heap", "data_size", "B", "{{ value_json.heap }}", "diagnostic");
+  addSensorConfig("Last Reset Reason", "rst_reason", "enum", nullptr, "{{ value_json.rst }}", "diagnostic");
+  addSensorConfig("Dropped Packets", "drop_pkt", nullptr, "pkt", "{{ value_json.dropped }}", "diagnostic");
+  addSensorConfig("Radio Type", "rf_type", nullptr, nullptr, "{{ value_json.rf_type }}", "diagnostic");
+  addSensorConfig("RF Packets Rx", "rf_rx", nullptr, "pkt", "{{ value_json.rf_rx }}", "diagnostic");
+  addSensorConfig("RF Packets Tx", "rf_tx", nullptr, "pkt", "{{ value_json.rf_tx }}", "diagnostic");
+}

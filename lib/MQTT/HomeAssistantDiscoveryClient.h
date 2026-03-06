@@ -14,6 +14,8 @@ public:
 
   void sendDiscoverableDevices(const std::map<String, GroupAlias>& aliases);
   void removeOldDevices(const std::map<uint32_t, BulbId>& aliases);
+  
+  void sendSystemSensors();
 
 private:
   Settings& settings;
@@ -22,4 +24,6 @@ private:
   String buildTopic(const BulbId& bulbId);
   String bindTopicVariables(const String& topic, const char* alias, const BulbId& bulbId);
   void addNumberedEffects(JsonArray& effectList, uint8_t start, uint8_t end);
+
+  void addSensorConfig(const char* name, const char* object_id, const char* device_class, const char* unit_of_meas, const char* value_template, const char* entity_category = nullptr);
 };

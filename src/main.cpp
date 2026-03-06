@@ -59,7 +59,17 @@ MqttClient* mqttClient = NULL;
 MiLightDiscoveryServer* discoveryServer = NULL;
 uint8_t currentRadioType = 0;
 
-// For tracking and managing group state
+unsigned long lastWifiCheck = 0;
+unsigned long lastMqttCheck = 0;
+const unsigned long WIFI_RECONNECT_INTERVAL = 20000;
+const unsigned long MQTT_CHECK_INTERVAL = 10000;
+
+// System Status Timer & Counters
+unsigned long lastSystemStatusTime = 0;
+const unsigned long SYSTEM_STATUS_INTERVAL = 30000; 
+unsigned long rfPacketsRx = 0;
+unsigned long rfPacketsTx = 0;
+
 GroupStateStore* stateStore = NULL;
 BulbStateUpdater* bulbStateUpdater = NULL;
 TransitionController transitions;
@@ -112,6 +122,8 @@ void initMilightUdpServers() {
  * is read.
  */
 void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
+  rfPacketsTx++;
+
   StaticJsonDocument<200> buffer;
   JsonObject result = buffer.to<JsonObject>();
 
@@ -175,6 +187,8 @@ void handleListen() {
       uint8_t readPacket[MILIGHT_MAX_PACKET_LENGTH];
       size_t packetLen = radios->read(readPacket);
 
+      rfPacketsRx++;
+
       const MiLightRemoteConfig* remoteConfig = MiLightRemoteConfig::fromReceivedPacket(
         radio->config(),
         readPacket,
@@ -215,9 +229,37 @@ void onUpdateEnd() {
   }
 }
 
-/**
- * Apply what's in the Settings object.
- */
+void publishSystemState() {
+  if (!mqttClient || !mqttClient->isConnected()) return;
+
+  unsigned long now = millis();
+  if (now - lastSystemStatusTime < SYSTEM_STATUS_INTERVAL) return;
+  lastSystemStatusTime = now;
+
+  StaticJsonDocument<1024> doc;
+  doc["ip"] = WiFi.localIP().toString();
+  doc["rssi"] = WiFi.RSSI();
+  doc["uptime"] = millis() / 1000;
+  doc["heap"] = ESP.getFreeHeap();
+  doc["rst"] = String(esp_reset_reason());
+  doc["rf_rx"] = rfPacketsRx;
+  doc["rf_tx"] = rfPacketsTx;
+  doc["rf_type"] = Settings::typeToString(settings.radioInterfaceType);
+
+  if (packetSender) {
+    doc["dropped"] = packetSender->droppedPackets();
+  }
+
+  String topicPrefix = settings.mqttTopicPattern;
+  int firstSlash = topicPrefix.indexOf('/');
+  String prefix = (firstSlash > 0) ? topicPrefix.substring(0, firstSlash) : "milight";
+  String topic = prefix + "/system_status/" + String(getESPId());
+
+  char payload[1024];
+  serializeJson(doc, payload);
+  mqttClient->send(topic.c_str(), payload, false);
+}
+
 void applySettings() {
   if (milightClient) {
     delete milightClient;
@@ -268,6 +310,7 @@ void applySettings() {
     mqttClient->onConnect([]() {
       if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
         HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
+        discoveryClient.sendSystemSensors();
         discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
         discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
 
@@ -522,6 +565,7 @@ void loop() {
     if (mqttClient) {
       mqttClient->handleClient();
       bulbStateUpdater->loop();
+      publishSystemState(); 
     }
 
     for (auto & udpServer : udpServers) {
