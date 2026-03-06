@@ -7,7 +7,7 @@
 #include <MiLightRemoteConfig.h>
 
 #ifndef MILIGHT_MAX_QUEUED_PACKETS
-#define MILIGHT_MAX_QUEUED_PACKETS 20
+#define MILIGHT_MAX_QUEUED_PACKETS 30
 #endif
 
 struct QueuedPacket {
